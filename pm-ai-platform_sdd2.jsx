@@ -1,5 +1,16 @@
 import React, { useState, useCallback, useRef } from "react";
 
+/* ════════════════════════════════ API CONFIG ════════════════════════════════════
+ *
+ * 请在此处配置你的 Anthropic API Key
+ * 获取地址: https://console.anthropic.com/settings/keys
+ *
+ * 配置方式:
+ * 1. 直接替换下面的字符串（仅本地开发，不要上传到 Git）
+ * 2. 或在浏览器控制台运行: localStorage.setItem('anthropic_api_key', 'your-key')
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+const API_KEY = ""; // 👈 在这里填入你的 API Key
+
 /* ═══════════════════════════════════ TOKENS ═══════════════════════════════════ */
 const C = {
   ink:"#0d0e12", paper:"#f5f3ee", cream:"#faf8f3", white:"#ffffff",
@@ -444,6 +455,209 @@ const DEMO_TASKS_GIT = `# Tasks: Git 同步与版本管理模块
 - OQ-T1：是否需要支持 Git 仓库的 SSH 方式连接？初步建议 V1.0 仅支持 HTTPS + Token，SSH 在 V1.5 支持。
 - OQ-T2：PR/MR 模板是否需要支持自定义？建议 V1.0 使用固定模板，后续迭代支持配置化。
 - OQ-T3：并发同步场景下是否需要加锁？建议同一需求同时只允许一个同步任务。`;
+
+/* ═══════════════════════════════ API ══════════════════════════════════════ */
+async function callClaude(prompt, maxTokens=1800) {
+  const apiKey = API_KEY || localStorage.getItem('anthropic_api_key') || "";
+  if (!apiKey) {
+    console.error("请先配置 API Key");
+    return "错误：未配置 API Key。请在代码顶部设置 API_KEY，或在浏览器控制台运行：\nlocalStorage.setItem('anthropic_api_key', 'your-key-here')";
+  }
+  const res = await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01"
+    },
+    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:maxTokens,messages:[{role:"user",content:prompt}]}),
+  });
+  const data = await res.json();
+  if (data.error) {
+    console.error("API Error:", data.error);
+    return `错误：${data.error.message}`;
+  }
+  return data.content?.map(b=>b.text||"").join("")||"";
+}
+
+async function callAIReview(card) {
+  const text = await callClaude(`你是资深产品经理评审专家。请对以下需求评审，从完整性、逻辑性、风险三个维度打分（0-100）。
+需求ID: ${card.id} | 标题: ${card.title} | 描述: ${card.desc} | 用户故事: ${card.userStory} | 验收标准: ${card.acceptanceCriteria.join("；")}
+严格按JSON返回：{"score":<0-100>,"completeness":<0-100>,"logic":<0-100>,"risk":<0-100>,"summary":"<2-3句>","risks":["<r1>","<r2>","<r3>"],"suggestions":["<s1>","<s2>","<s3>"],"passed":<bool,>=70为true>}`);
+  return JSON.parse(text.replace(/```json|```/g,"").trim());
+}
+
+const DOC_PROMPTS = {
+  prd: (card) => `你是资深产品经理。根据以下需求信息，生成标准PRD文档内容（Markdown格式）。
+
+需求标题: ${card.title}
+需求描述: ${card.desc}
+用户故事: ${card.userStory}
+验收标准: ${card.acceptanceCriteria.join("；")}
+标签: ${card.tags.join("、")}
+
+请生成完整的Markdown格式PRD，包含以下章节，内容丰富专业：
+
+# ${card.title}
+
+**版本**: V1.0 | **作者**: AI生成 | **日期**: ${new Date().toLocaleDateString("zh-CN")}
+
+## 1. 概述
+
+### 1.1 背景与目标
+
+**背景**: ${card.desc}
+
+**目标**: [详细描述短期和长期目标]
+
+### 1.2 产品愿景
+
+[一句话愿景]
+
+## 2. 用户与场景
+
+### 2.1 目标用户
+
+[用户画像描述]
+
+### 2.2 用户故事
+
+${card.userStory}
+
+### 2.3 使用场景
+
+[描述典型使用场景]
+
+## 3. 功能需求
+
+### 3.1 核心功能
+
+- **功能1**: [功能名称]
+  - **描述**: [详细描述]
+  - **优先级**: P0/P1/P2
+
+### 3.2 非功能需求
+
+- **性能**: [性能要求]
+- **安全**: [安全要求]
+- **兼容性**: [兼容性要求]
+
+## 4. 验收标准
+
+${card.acceptanceCriteria.map((c, i) => `${i + 1}. ${c}`).join("\n")}
+
+## 5. 限制与约束
+
+[技术、业务、时间等约束]
+
+请直接输出Markdown内容，内容要具体、专业，不要使用占位符。`,
+
+  proposal: (card) => `你是技术提案专家。根据以下需求生成 OpenSpec 格式的 Proposal 文档。
+
+需求: ${card.title} - ${card.desc}
+
+生成 proposal.md，包含：
+
+# Proposal: ${card.title}
+
+## Intent (意图)
+
+[我们想要达成什么目标？]
+
+## Scope (范围)
+
+- **In Scope**: [包含的内容]
+- **Out of Scope**: [明确不包含的内容]
+
+## Approach (方法)
+
+[我们计划如何实现？]
+
+## Alternatives Considered (备选方案)
+
+- **方案A**: [描述]
+- **方案B**: [描述]
+
+## Risks & Mitigation (风险与缓解)
+
+| 风险 | 影响 | 缓解措施 |
+|------|------|----------|
+| ... | ... | ... |
+
+请直接输出Markdown内容。`,
+
+  design: (card) => `你是技术设计专家。根据以下需求生成 Design 文档。
+
+需求: ${card.title} - ${card.desc}
+
+生成 design.md，包含：
+
+# Design: ${card.title}
+
+## Overview (概览)
+
+[系统架构概览]
+
+## Technical Solution (技术方案)
+
+### 前端架构
+
+### 后端架构
+
+### 数据模型
+
+## API Definitions (接口定义)
+
+\`\`\`typescript
+// API 接口定义
+\`\`\`
+
+## Data Flow (数据流)
+
+[描述关键数据流]
+
+## Security & Privacy (安全与隐私)
+
+[安全考虑]
+
+请直接输出Markdown内容。`,
+
+  tasks: (card) => `你是项目管理专家。根据以下需求生成任务清单。
+
+需求: ${card.title} - ${card.desc}
+
+生成 tasks.md，包含：
+
+# Tasks: ${card.title}
+
+## Backend Tasks（后端任务）
+
+- **TASK-BE-001**: [任务名称]
+  - **描述**: [详细描述]
+  - **预期工时**: [Xh]
+  - **状态**: 待开始
+
+## Frontend Tasks（前端任务）
+
+- **TASK-FE-001**: [任务名称]
+  - **描述**: [详细描述]
+  - **预期工时**: [Xh]
+  - **状态**: 待开始
+
+## Testing Tasks（测试任务）
+
+- **TASK-T-001**: [测试任务]
+  - **描述**: [测试场景]
+  - **预期工时**: [Xh]
+  - **状态**: 待开始
+
+请直接输出Markdown内容，工时和任务标题请根据需求合理填写。`
+};
+
+async function callAIDoc(card, docType) {
+  const prompt = DOC_PROMPTS[docType](card);
+  return await callClaude(prompt, 2000);
+}
 
 /* ═══════════════════════════ INITIAL DATA ═══════════════════════════════════ */
 const mkDocs = () => ({ prd:null, proposal:null, design:null, tasks:null });

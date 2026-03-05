@@ -45,12 +45,28 @@ const INITIAL_CARDS = [
 ];
 
 /* ═══════════════════════════════ API ══════════════════════════════════════ */
+const API_KEY = ""; // 👈 配置你的 Anthropic API Key
+
 async function callClaude(prompt, maxTokens=1800) {
+  const apiKey = API_KEY || localStorage.getItem('anthropic_api_key') || "";
+  if (!apiKey) {
+    console.error("请先配置 API Key");
+    return "错误：未配置 API Key。请在代码顶部设置 API_KEY，或在浏览器控制台运行：\nlocalStorage.setItem('anthropic_api_key', 'your-key-here')";
+  }
   const res = await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST", headers:{"Content-Type":"application/json"},
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01"
+    },
     body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:maxTokens,messages:[{role:"user",content:prompt}]}),
   });
   const data = await res.json();
+  if (data.error) {
+    console.error("API Error:", data.error);
+    return `错误：${data.error.message}`;
+  }
   return data.content?.map(b=>b.text||"").join("")||"";
 }
 
