@@ -938,42 +938,6 @@ function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onUpdateCard }
           onTabChange={setRightTab}
           onSendMessage={handleSendMessage}
         />
-          <div style={{borderBottom:`1px solid ${C.border}`,padding:"0 28px",display:"flex",alignItems:"center",gap:0,background:C.cream,flexShrink:0,height:40}}>
-            {selDocMeta && (
-              <div style={{display:"flex",alignItems:"center",gap:8,padding:"0 16px 0 0",borderRight:`1px solid ${C.border}`,height:"100%"}}>
-                <span style={{fontSize:14}}>{selDocMeta.icon}</span>
-                <span style={{fontSize:13,fontWeight:600,color:C.ink}}>{selDocMeta.label}</span>
-                {selContent && <span style={{width:6,height:6,borderRadius:"50%",background:"#a6e3a1",marginLeft:4}}/>}
-              </div>
-            )}
-            <div style={{padding:"0 16px",fontSize:12,color:C.muted}}>
-              {selCard?.id} · {selCard?.title?.slice(0,30)}{selCard?.title?.length>30?"…":""}
-            </div>
-          </div>
-
-          <div style={{flex:1,overflowY:"auto"}}>
-            {!selCard ? (
-              <EmptyState icon="📂" title="请从左侧选择文档" desc="选择一个需求和文档类型开始查看"/>
-            ) : editMode ? (
-              <div style={{padding:"24px 36px",height:"100%",boxSizing:"border-box"}}>
-                <textarea
-                  value={editText}
-                  onChange={e=>setEditText(e.target.value)}
-                  style={{width:"100%",height:"calc(100vh - 180px)",padding:"16px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,color:C.ink,background:C.cream,outline:"none",resize:"none",lineHeight:1.75,fontFamily:"'DM Mono',monospace",boxSizing:"border-box"}}
-                  onFocus={e=>{e.target.style.borderColor=C.accent;e.target.style.boxShadow=`0 0 0 3px ${C.accentLight}`}}
-                  onBlur={e=>{e.target.style.borderColor=C.border;e.target.style.boxShadow="none"}}
-                />
-              </div>
-            ) : selContent ? (
-              <div className="doc-content" style={{padding:"36px 52px",maxWidth:860,animation:"fadeIn 0.3s ease"}}>
-                <MarkdownRenderer content={selContent}/>
-              </div>
-            ) : (
-              <EmptyState icon={selDocMeta?.icon || "📄"} title={`${selDocMeta?.label || "文档"} 尚未生成`}
-                desc={`需求：${selCard?.title}  —  可通过 AI 设计功能自动生成此文档`}/>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -1087,21 +1051,6 @@ function ReferencePanel({ currentCard, allCards }) {
       .map(card => {
         let score = 0;
         const commonTags = card.tags ? card.tags.filter(t => currentCard.tags?.includes(t)) : [];
-        score += commonTags.length * 10;
-        if (card.priority === currentCard.priority) score += 5;
-        return { card, score };
-      })
-      .filter(s => s.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
-      .map(s => ({...s.card, similarityScore: s.score}));
-  }, [currentCard, allCards]);
-    if (!currentCard) return [];
-    return allCards
-      .filter(c => c.id !== currentCard.id)
-      .map(card => {
-        let score = 0;
-        const commonTags = card.tags.filter(t => currentCard.tags.includes(t));
         score += commonTags.length * 10;
         if (card.priority === currentCard.priority) score += 5;
         return { card, score };
