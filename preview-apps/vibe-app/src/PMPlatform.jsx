@@ -44,33 +44,23 @@ const INITIAL_CARDS = [
   {id:"REQ-005",col:"approved",priority:"P0",title:"登录态长效保持（30天免登）",desc:"用户勾选「30天内免登录」后，Token 有效期延长，合规刷新机制保障安全。",tags:["账号","安全"],author:"刘洋",date:"2025-02-20",userStory:"作为用户，我希望在常用设备上长期保持登录状态，减少重复输入密码。",acceptanceCriteria:["30天内免重新登录","Token刷新无感知","异地登录触发验证"],aiResult:{score:91,completeness:93,logic:90,risk:88,summary:"需求描述完整，安全边界考虑充分。",risks:["Token泄露风险需设备绑定加固"],suggestions:["增加设备管理入口"],passed:true},docs:mkDocs()},
 ];
 
-/* ═══════════════════════════════ API ══════════════════════════════════════ */
-const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
+/* ═══════════════════════════════ API ══════════════════════════════════════
+ * 支持 Claude (Anthropic) 和 GLM-4 (Zhipu)
+ * 使用 AIClient 统一接口
+ * 模型选择: localStorage.getItem('ai_model_selected') || 'claude'
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+function getSelectedModel() {
+  return localStorage.getItem('ai_model_selected') || 'claude';
+}
 
-async function callClaude(prompt, maxTokens=1800) {
-  if (!API_KEY) {
-    console.error("请先在 .env 文件中配置 VITE_ANTHROPIC_API_KEY");
-    return "错误：未配置 API Key，请在 .env 文件中设置 VITE_ANTHROPIC_API_KEY";
-  }
-  const res = await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "x-api-key": API_KEY,
-      "anthropic-version": "2023-06-01"
-    },
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:maxTokens,messages:[{role:"user",content:prompt}]}),
-  });
-  const data = await res.json();
-  if (data.error) {
-    console.error("API Error:", data.error);
-    return `错误：${data.error.message}`;
-  }
-  return data.content?.map(b=>b.text||"").join("")||"";
+async function callAI(prompt, maxTokens=1800) {
+  const model = getSelectedModel();
+  const client = new AIClient(model);
+  return await client.chat(prompt, maxTokens);
 }
 
 async function callAIReview(card) {
-  const text = await callClaude(`你是资深产品经理评审专家。请对以下需求评审，从完整性、逻辑性、风险三个维度打分（0-100）。
+  const text = await callAI(`你是资深产品经理评审专家。请对以下需求评审，从完整性、逻辑性、风险三个维度打分（0-100）。
 需求ID: ${card.id} | 标题: ${card.title} | 描述: ${card.desc} | 用户故事: ${card.userStory} | 验收标准: ${card.acceptanceCriteria.join("；")}
 严格按JSON返回：{"score":<0-100>,"completeness":<0-100>,"logic":<0-100>,"risk":<0-100>,"summary":"<2-3句>","risks":["<r1>","<r2>","<r3>"],"suggestions":["<s1>","<s2>","<s3>"],"passed":<bool,>=70为true>}`);
   return JSON.parse(text.replace(/```json|```/g,"").trim());
@@ -310,7 +300,7 @@ const DOC_PROMPTS = {
 
 async function callAIDoc(card, docType) {
   const prompt = DOC_PROMPTS[docType](card);
-  return await callClaude(prompt, 2000);
+  return await callAI(prompt, 2000);
 }
 
 /* ═══════════════════════════ MARKDOWN RENDERER ═════════════════════════════ */

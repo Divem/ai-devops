@@ -36,42 +36,36 @@ const scoreColor    = s => s>=80?C.success:s>=60?C.warn:C.danger;
 const scoreBg       = s => s>=80?C.successLight:s>=60?C.warnLight:C.dangerLight;
 
 /* ═══════════════════════════ INITIAL DATA ═══════════════════════════════════ */
+
+// Spec 示例内容：提案评审与修改模块
+const DEMO_SPEC_REVIEW = "# 提案评审与修改模块规格说明\n\n**规格 ID**: SPEC-REQ-005 | **版本**: 1.0 | **日期**: 2026/3/5\n\n## 1. 概述\n\n### 1.1 背景与目标\n\n**背景**: AI 生成的 OpenSpec 提案需要产品经理进行人工评审和修改。当前缺乏统一的在线评审界面，产品经理需要在本地编辑 Markdown 文件，导致版本管理困难、协作效率低下。\n\n**目标**: 提供友好的在线评审与修改界面，支持分屏对比、评论批注、版本历史和实时预览，将提案修改效率提升 50%%。\n\n### 1.2 功能定位\n\n本模块是智能需求分析与设计工作流的第四阶段，位于\"提案生成\"之后、\"Git 同步\"之前。\n\n## 2. 功能规格\n\n### 2.1 评审视图\n\n**分屏对比模式**\n- 左侧：AI 生成的原始提案草稿（只读）\n- 右侧：产品经理编辑后的版本（可编辑）\n- 差异高亮：自动标记已修改的段落\n- 同步滚动：两侧内容联动滚动\n\n**评论批注系统**\n- 支持段落级评论：选中任意文本添加批注\n- 批注状态：待解决 / 已解决\n- @ 提醒：可 @ 相关人员参与讨论\n- 批注导出：支持导出批注为 Markdown\n\n**版本历史管理**\n- 自动保存：每次编辑自动生成版本快照\n- 版本对比：任意两个版本间的差异对比\n- 版本恢复：一键恢复到历史版本\n- 版本标签：支持为重要版本添加标签\n\n### 2.2 修改工具\n\n**富文本编辑器**\n- 工具栏：加粗、斜体、标题、列表、引用、代码块\n- 快捷键：支持 Markdown 快捷键输入\n- 表格编辑：可视化表格编辑器\n- 图片粘贴：支持直接粘贴截图\n\n**Markdown 实时预览**\n- 分屏预览：编辑区与预览区并排显示\n- 语法高亮：代码块自动语法高亮\n- 数学公式：支持 LaTeX 公式渲染\n- Mermaid 图表：支持流程图、时序图渲染\n\n**OpenSpec 格式验证**\n- 实时校验：自动检查 OpenSpec 格式规范\n- 错误提示：标出不规范的章节和格式\n- 格式修复：一键修复常见格式问题\n\n### 2.3 状态管理\n\n| 状态 | 描述 | 可执行操作 |\n|------|------|-----------|\n| 草稿 | AI 生成后初始状态 | 编辑、预览、删除 |\n| 待评审 | 提交评审申请 | 评论、批准、退回 |\n| 已确认 | 产品经理确认通过 | 同步至 Git |\n\n## 3. UI 规格\n\n### 3.1 页面布局\n\n```\n+-------------------------------------------------------------+\n|  提案评审: 提案评审与修改模块                    [保存][提交] |\n+---------------------+---------------------------------------+\n| ◆ AI 草稿           | ◆ 编辑版本                             |\n| +-----------------+ | +-----------------------------------+ |\n| | proposal.md     | | | [B] I [H] v 插入表格           | |\n| | (只读)          | | +-----------------------------------+ |\n| |                 | | | # 提案评审与修改模块            | |\n| | ...内容...      | | |                                 | |\n| |                 | | | ...内容...                      | |\n| +-----------------+ | |                                 | |\n+---------------------+ |                                 | |\n| [版本历史] [评论]    | |                                 | |\n+---------------------+-+-----------------------------------+-+\n+-------------------------------------------------------------+\n| 💬 批注 (3)                                     [添加批注]   |\n| • @张三: 这里的验收标准需要补充...  [待解决]  [回复]         |\n| • @李四: 同意，建议修改为...        [已解决]                 |\n+-------------------------------------------------------------+\n```\n\n### 3.2 交互设计\n\n- **拖拽调整**: 分屏比例可拖拽调整\n- **快捷键**: Cmd+S 保存、Cmd+K 提交、Cmd+P 预览\n- **状态指示**: 顶部实时显示\"已保存\"或\"未保存\"状态\n\n## 4. 数据规格\n\n### 4.1 数据模型\n\n```typescript\ninterface ProposalVersion {\n  id: string;\n  proposalId: string;\n  content: {\n    proposal: string;\n    design: string;\n    specs: string;\n    tasks: string;\n  };\n  createdAt: Date;\n  createdBy: string;\n  comment?: string;\n}\n\ninterface ProposalComment {\n  id: string;\n  proposalId: string;\n  targetDoc: \"proposal\" | \"design\" | \"specs\" | \"tasks\";\n  targetLine: number;\n  content: string;\n  author: string;\n  status: \"pending\" | \"resolved\";\n  mentions: string[];\n  createdAt: Date;\n}\n```\n\n### 4.2 API 接口\n\n| 接口 | 方法 | 描述 |\n|------|------|------|\n| /api/proposals/{id}/versions | GET | 获取版本历史 |\n| /api/proposals/{id}/versions/{vid} | GET | 获取指定版本内容 |\n| /api/proposals/{id}/diff | GET | 对比两个版本差异 |\n| /api/proposals/{id}/comments | GET | 获取批注列表 |\n| /api/proposals/{id}/comments | POST | 添加批注 |\n| /api/proposals/{id}/status | PUT | 更新提案状态 |\n\n### 4.3 存储策略\n\n- **版本存储**: 增量存储，仅保存变更部分\n- **批注存储**: 独立存储，关联提案 ID\n- **缓存策略**: 编辑中内容本地缓存，5 分钟自动上传\n";
+
 const mkDocs = () => ({ prd:null, spec:null, proposal:null, design:null, tasks:null });
 const INITIAL_CARDS = [
   {id:"REQ-001",col:"backlog",priority:"P0",title:"用户购买流程优化 — 一键下单",desc:"当前用户完成购买需要 7 步操作，竞品平均 3 步。目标将核心购买路径缩短至 3 步，减少结账跳失率 25%。",tags:["电商","体验优化"],author:"张晓薇",date:"2025-03-01",userStory:"作为用户，我希望能在商品详情页直接完成支付，无需跳转多个页面。",acceptanceCriteria:["商品页→支付页≤2次跳转","支持微信/支付宝/Apple Pay","异常中断后恢复购物车"],aiResult:null,docs:mkDocs()},
   {id:"REQ-002",col:"backlog",priority:"P1",title:"消息中心全局未读角标",desc:"App 首页/底部 Tab 需展示消息未读数，跨会话持久化，推送同步。",tags:["通知","基础能力"],author:"李明",date:"2025-03-02",userStory:"作为用户，我希望随时知道有多少未读消息，不错过重要通知。",acceptanceCriteria:["角标数字实时同步","已读后立即清零","超99显示99+"],aiResult:null,docs:mkDocs()},
   {id:"REQ-003",col:"reviewing",priority:"P1",title:"搜索结果页个性化排序",desc:"基于用户历史行为、地理位置、偏好标签对搜索结果进行个性化重排，提升点击率和转化率。",tags:["搜索","个性化","算法"],author:"王芳",date:"2025-02-28",userStory:"作为用户，我希望搜索结果能更贴合我的偏好，减少无关内容干扰。",acceptanceCriteria:["CTR提升≥15%","冷启动用户默认时间序","支持用户手动切换排序方式"],aiResult:null,docs:mkDocs()},
   {id:"REQ-004",col:"confirm",priority:"P2",title:"订单状态实时推送",desc:"用户下单后，各关键状态节点通过 Push + 站内信双通道推送。",tags:["推送","订单"],author:"陈刚",date:"2025-02-26",userStory:"作为用户，我希望实时了解订单进展，不需要主动刷新页面。",acceptanceCriteria:["Push到达率≥95%","延迟≤3秒","用户可配置推送开关"],aiResult:{score:82,completeness:88,logic:85,risk:72,summary:"需求整体清晰，验收标准可量化。建议补充Push失败降级策略和消息幂等设计。",risks:["高峰期推送延迟可能超标","iOS后台推送受系统限制"],suggestions:["增加消息去重逻辑","明确失败重试次数上限"],passed:true},docs:mkDocs()},
-  {id:"REQ-005",col:"approved",priority:"P0",title:"登录态长效保持（30天免登）",desc:"用户勾选「30天内免登录」后，Token 有效期延长，合规刷新机制保障安全。",tags:["账号","安全"],author:"刘洋",date:"2025-02-20",userStory:"作为用户，我希望在常用设备上长期保持登录状态，减少重复输入密码。",acceptanceCriteria:["30天内免重新登录","Token刷新无感知","异地登录触发验证"],aiResult:{score:91,completeness:93,logic:90,risk:88,summary:"需求描述完整，安全边界考虑充分。",risks:["Token泄露风险需设备绑定加固"],suggestions:["增加设备管理入口"],passed:true},docs:mkDocs()},
+  {id:"REQ-005",col:"approved",priority:"P0",title:"登录态长效保持（30天免登）",desc:"用户勾选「30天内免登录」后，Token 有效期延长，合规刷新机制保障安全。",tags:["账号","安全"],author:"刘洋",date:"2025-02-20",userStory:"作为用户，我希望在常用设备上长期保持登录状态，减少重复输入密码。",acceptanceCriteria:["30天内免重新登录","Token刷新无感知","异地登录触发验证"],aiResult:{score:91,completeness:93,logic:90,risk:88,summary:"需求描述完整，安全边界考虑充分。",risks:["Token泄露风险需设备绑定加固"],suggestions:["增加设备管理入口"],passed:true},docs:{prd:null,spec:DEMO_SPEC_REVIEW,proposal:null,design:null,tasks:null}},
 ];
 
-/* ═══════════════════════════════ API ══════════════════════════════════════ */
-const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
+/* ═══════════════════════════════ API ══════════════════════════════════════
+ * 支持 Claude (Anthropic) 和 GLM-4 (Zhipu)
+ * 使用 AIClient 统一接口
+ * 模型选择: localStorage.getItem('ai_model_selected') || 'claude'
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+function getSelectedModel() {
+  return localStorage.getItem('ai_model_selected') || 'claude';
+}
 
-async function callClaude(prompt, maxTokens=1800) {
-  if (!API_KEY) {
-    console.error("请先在 .env 文件中配置 VITE_ANTHROPIC_API_KEY");
-    return "错误：未配置 API Key，请在 .env 文件中设置 VITE_ANTHROPIC_API_KEY";
-  }
-  const res = await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "x-api-key": API_KEY,
-      "anthropic-version": "2023-06-01"
-    },
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:maxTokens,messages:[{role:"user",content:prompt}]}),
-  });
-  const data = await res.json();
-  if (data.error) {
-    console.error("API Error:", data.error);
-    return `错误：${data.error.message}`;
-  }
-  return data.content?.map(b=>b.text||"").join("")||"";
+async function callAI(prompt, maxTokens=1800) {
+  const model = getSelectedModel();
+  const client = new AIClient(model);
+  return await client.chat(prompt, maxTokens);
 }
 
 async function callAIReview(card) {
-  const text = await callClaude(`你是资深产品经理评审专家。请对以下需求评审，从完整性、逻辑性、风险三个维度打分（0-100）。
+  const text = await callAI(`你是资深产品经理评审专家。请对以下需求评审，从完整性、逻辑性、风险三个维度打分（0-100）。
 需求ID: ${card.id} | 标题: ${card.title} | 描述: ${card.desc} | 用户故事: ${card.userStory} | 验收标准: ${card.acceptanceCriteria.join("；")}
 严格按JSON返回：{"score":<0-100>,"completeness":<0-100>,"logic":<0-100>,"risk":<0-100>,"summary":"<2-3句>","risks":["<r1>","<r2>","<r3>"],"suggestions":["<s1>","<s2>","<s3>"],"passed":<bool,>=70为true>}`);
   return JSON.parse(text.replace(/```json|```/g,"").trim());

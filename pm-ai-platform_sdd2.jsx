@@ -2,16 +2,20 @@ import React, { useState, useCallback, useRef } from "react";
 
 /* ════════════════════════════════ API CONFIG ════════════════════════════════════
  *
- * 请在此处配置你的 Anthropic API Key
- * 获取地址: https://console.anthropic.com/settings/keys
+ * 支持多种 AI 模型：Claude (Anthropic) 和 GLM-4 (Zhipu)
  *
- * 配置方式:
- * 1. 直接替换下面的字符串（仅本地开发，不要上传到 Git）
- * 2. 或在浏览器控制台运行: localStorage.setItem('anthropic_api_key', 'your-key')
+ * Claude API Key:
+ *   获取地址: https://console.anthropic.com/settings/keys
+ *   localStorage: localStorage.setItem('ai_model_claude_key', 'your-key')
+ *
+ * GLM API Key:
+ *   获取地址: https://open.bigmodel.cn/usercenter/apikeys
+ *   localStorage: localStorage.setItem('ai_model_glm_key', 'your-key')
+ *
+ * 配置优先级: localStorage > 代码常量（仅本地开发，不要上传到 Git）
  * ───────────────────────────────────────────────────────────────────────────────────────── */
-const API_KEY = ""; // 👈 在这里填入你的 API Key
-
-/* ═══════════════════════════════════ TOKENS ═══════════════════════════════════ */
+const CLAUDE_API_KEY = "";
+const ZHIPU_API_KEY = "";
 const C = {
   ink:"#0d0e12", paper:"#f5f3ee", cream:"#faf8f3", white:"#ffffff",
   muted:"#9b9b8a", border:"#e2ddd5",
@@ -456,32 +460,22 @@ const DEMO_TASKS_GIT = `# Tasks: Git 同步与版本管理模块
 - OQ-T2：PR/MR 模板是否需要支持自定义？建议 V1.0 使用固定模板，后续迭代支持配置化。
 - OQ-T3：并发同步场景下是否需要加锁？建议同一需求同时只允许一个同步任务。`;
 
-/* ═══════════════════════════════ API ══════════════════════════════════════ */
-async function callClaude(prompt, maxTokens=1800) {
-  const apiKey = API_KEY || localStorage.getItem('anthropic_api_key') || "";
-  if (!apiKey) {
-    console.error("请先配置 API Key");
-    return "错误：未配置 API Key。请在代码顶部设置 API_KEY，或在浏览器控制台运行：\nlocalStorage.setItem('anthropic_api_key', 'your-key-here')";
-  }
-  const res = await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
-    },
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:maxTokens,messages:[{role:"user",content:prompt}]}),
-  });
-  const data = await res.json();
-  if (data.error) {
-    console.error("API Error:", data.error);
-    return `错误：${data.error.message}`;
-  }
-  return data.content?.map(b=>b.text||"").join("")||"";
+/* ═══════════════════════════════ API ══════════════════════════════════════
+ * 使用 AIClient 统一接口，支持 Claude 和 GLM 模型
+ * 模型选择: localStorage.getItem('ai_model_selected') || 'claude'
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+function getSelectedModel() {
+  return localStorage.getItem('ai_model_selected') || 'claude';
+}
+
+async function callAI(prompt, maxTokens=1800) {
+  const model = getSelectedModel();
+  const client = new AIClient(model);
+  return await client.chat(prompt, maxTokens);
 }
 
 async function callAIReview(card) {
-  const text = await callClaude(`你是资深产品经理评审专家。请对以下需求评审，从完整性、逻辑性、风险三个维度打分（0-100）。
+  const text = await callAI(`你是资深产品经理评审专家。请对以下需求评审，从完整性、逻辑性、风险三个维度打分（0-100）。
 需求ID: ${card.id} | 标题: ${card.title} | 描述: ${card.desc} | 用户故事: ${card.userStory} | 验收标准: ${card.acceptanceCriteria.join("；")}
 严格按JSON返回：{"score":<0-100>,"completeness":<0-100>,"logic":<0-100>,"risk":<0-100>,"summary":"<2-3句>","risks":["<r1>","<r2>","<r3>"],"suggestions":["<s1>","<s2>","<s3>"],"passed":<bool,>=70为true>}`);
   return JSON.parse(text.replace(/```json|```/g,"").trim());
@@ -656,7 +650,7 @@ ${card.acceptanceCriteria.map((c, i) => `${i + 1}. ${c}`).join("\n")}
 
 async function callAIDoc(card, docType) {
   const prompt = DOC_PROMPTS[docType](card);
-  return await callClaude(prompt, 2000);
+  return await callAI(prompt, 2000);
 }
 
 /* ═══════════════════════════ INITIAL DATA ═══════════════════════════════════ */
@@ -965,7 +959,7 @@ function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onUpdateCard }
     const updatedHistory = [...chatHistory, newMessage];
 
     try {
-      const response = await callClaude(
+      const response = await callAI(
         `你是产品需求分析专家。针对以下需求回答用户的问题。
 
 需求标题: ${card.title}
