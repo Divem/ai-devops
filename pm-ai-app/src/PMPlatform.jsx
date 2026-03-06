@@ -419,7 +419,7 @@ ${card.acceptanceCriteria.map((c, i) => `${i + 1}. ${c}`).join("\n")}
 
 async function callAIDoc(card, docType) {
   const prompt = DOC_PROMPTS[docType](card);
-  return await callClaude(prompt, 2000);
+  return await callAI(prompt, 2000);
 }
 
 /* ═══════════════════════════ MARKDOWN RENDERER ═════════════════════════════ */
@@ -1456,6 +1456,7 @@ export default function PMPlatform() {
   const [dragCard,setDragCard]      = useState(null);
   const [activeTab,setActiveTab]    = useState("kanban");
   const [toast,setToast]            = useState(null);
+  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('ai_model_selected') || 'claude');
 
   const notify=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3000);};
 
@@ -1505,7 +1506,7 @@ export default function PMPlatform() {
     const updatedHistory = [...chatHistory, newMessage];
 
     try {
-      const response = await callClaude(
+      const response = await callAI(
         `你是产品需求分析专家。针对以下需求回答用户的问题。
 
 需求标题: ${card.title}
@@ -1592,6 +1593,25 @@ export default function PMPlatform() {
           </button>
         ))}
         <div style={{marginLeft:"auto",display:"flex",gap:10,alignItems:"center"}}>
+          {/* AI Model Selector */}
+          <div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 10px",background:"#1a1a1a",borderRadius:5}}>
+            <span style={{fontSize:10,color:"#555"}}>AI模型</span>
+            <select
+              value={selectedModel}
+              onChange={(e) => {
+                const model = e.target.value;
+                setSelectedModel(model);
+                localStorage.setItem('ai_model_selected', model);
+                notify(`已切换到 ${model === 'claude' ? 'Claude' : 'GLM-4'}`);
+                // 刷新页面以应用新模型
+                setTimeout(() => window.location.reload(), 500);
+              }}
+              style={{background:"#2a2a2a",color:"#fff",border:"1px solid #444",borderRadius:4,padding:"4px 8px",fontSize:11,cursor:"pointer",outline:"none"}}
+            >
+              <option value="claude">Claude (Anthropic)</option>
+              <option value="glm">GLM-4 (Zhipu)</option>
+            </select>
+          </div>
           {[{label:"总需求",val:stats.total,c:"#fff"},{label:"已通过",val:stats.approved,c:"#4ade80"},{label:"含文档",val:stats.withDocs,c:"#c4b5fd"}].map(s=>(
             <div key={s.label} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",background:"#1a1a1a",borderRadius:5}}>
               <span style={{fontSize:15,fontWeight:700,color:s.c,fontFamily:"'DM Mono',monospace"}}>{s.val}</span>

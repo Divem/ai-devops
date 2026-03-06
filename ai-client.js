@@ -252,7 +252,10 @@ const ModelRegistry = {
   }
 };
 
-// 导出（用于模块化环境）
+// ES 模块导出（用于 Vite 等现代构建工具）
+export { AIClient, ClaudeProvider, GLMProvider, ModelRegistry };
+
+// CommonJS 导出（用于 Node.js 兼容）
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { AIClient, ClaudeProvider, GLMProvider, ModelRegistry };
 }
