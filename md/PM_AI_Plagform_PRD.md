@@ -1,12 +1,12 @@
-# 智能需求分析与设计功能产品设计文档
+# Agentic DevOps 智能需求助手PRD
 
 **作者**: YUANWEN AI
-**日期**: 2026年2月24日
+**日期**: 2026年3月2日
 **最后更新**: 2026年3月8日（补充多维筛选、多提案、AI Skill 管理、历史需求参考、多模型支持、离线兜底等实现功能）
 
 ## 1. 功能概述
 
-本功能旨在将需求管理平台与先进的 AI 辅助设计能力（基于 Claude Code）及标准化设计规范（OpenSpec）深度融合，构建一个从业务需求提出、多轮对话澄清、自动化提案生成、在线评审到 Git 仓库同步的端到端智能需求分析与设计工作流。核心目标是提升产品经理的需求理解效率、标准化设计文档质量，并加速开发团队的需求落地速度。
+本功能旨在将需求管理平台与先进的 AI 辅助设计能力（基于OpenClaw🦞等）及标准化设计规范（OpenSpec等）深度融合，构建一个从业务需求提出、多轮对话澄清、自动化提案生成、在线评审到 Git 仓库同步的端到端智能需求分析与设计工作流。核心目标是提升产品经理的需求理解效率、标准化设计文档质量，并加速开发团队的需求落地速度。
 
 ## 2. 用户旅程
 
@@ -150,8 +150,8 @@
 ```mermaid
 sequenceDiagram
     participant Meego as Meego (业务需求平台)
-    participant PM as 产品经理
-    participant AI as AI 助手 (Claude Code)
+    participant PM as Agentic DevOps（PM）
+    participant AI as AI 助手 (OpenClaw)
     participant Git as Git 仓库 (OpenSpec)
     participant Dev as 开发人员
 

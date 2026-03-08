@@ -73,7 +73,23 @@ npm run dev
 - AI 模型配置：Claude / GLM / ARK
 - Git 仓库配置：GitHub / GitLab
 - SDD 框架配置：OpenSpec / 其他模板
-- AI Skill 配置：提示词模板管理
+- AI Skill 配置：结构化 Skill 包管理（`SKILL.md` + `references/*` + `scripts/*`）
+
+### AI Skill 标准结构（示例）
+
+```text
+skillname/
+├── SKILL.md
+├── references/
+│   ├── req-clarification.md
+│   ├── git-sync-checklist.md
+│   └── field-mapping.md
+└── scripts/
+    └── scriptname.ts
+```
+
+- 旧版仅字符串 prompt 配置会自动迁移到 `SKILL.md`
+- 保存时会校验路径规范，并自动将 `scrips/*` 修正为 `scripts/*`
 
 未配置 API Key 时，部分流程会使用示例回退数据以保证演示可走通。
 

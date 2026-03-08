@@ -286,6 +286,19 @@ const DEMO_SPEC_REVIEW = "# 提案评审与修改模块规格说明\n\n**规格 
 const mkDocs = () => ({ prd:null, proposals:[] });
 
 // AI Fallback 示例内容
+const FALLBACK_TRENDS = (() => {
+  const now = new Date();
+  const newCounts = [4, 6, 8, 7, 9, 10];
+  const approvedCounts = [2, 3, 5, 5, 7, 8];
+  const backlogs = [2, 5, 8, 10, 12, 14];
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    return { key: `${y}-${m}`, label: `${y}/${m}`, newCount: newCounts[i], approved: approvedCounts[i], rejected: 0, backlog: backlogs[i] };
+  });
+})();
+
 const FALLBACK_DOCS = {
   prd: `> ⚠️ 以下为示例内容，非 AI 实时生成
 
@@ -570,7 +583,7 @@ const KANBAN_ITERATIONS = [
   '迭代-20260115', '迭代-20260101', '迭代-20251215',
 ];
 
-const INITIAL_CARDS = [
+const BASE_INITIAL_CARDS = [
   // 1. 需求列表页面（看板视图）
   {
     id: "REQ-100",
@@ -1400,6 +1413,245 @@ CREATE TABLE git_sync_records (
   }
 ];
 
+// 来源：md/PM_AI_Plagform_PRD.md 功能模块（3.0~3.7）
+const PRD_SEEDED_SAMPLE_CARDS = [
+  {
+    id: "REQ-106",
+    col: "backlog",
+    priority: "P1",
+    title: "需求卡片多维筛选与快速过滤",
+    desc: "基于空间、子系统、应用、迭代四个维度提供联动筛选，并支持点击卡片 badge 快速触发对应维度过滤。",
+    tags: ["看板", "筛选", "体验优化"],
+    author: "王芳",
+    date: "2026-03-02",
+    userStory: "作为产品经理，我希望用多维筛选快速定位目标需求，以便在演示中高效聚焦。",
+    acceptanceCriteria: [
+      "支持空间/子系统/应用/迭代四维 AND 过滤",
+      "点击卡片维度 badge 可触发快速筛选",
+      "清除筛选后恢复全部需求",
+    ],
+    aiResult: null,
+    docs: { prd: null, proposals: [] },
+    space: "马上消费",
+    subsystem: "消费金融",
+    app: "马上消费App",
+    iteration: "迭代-20260301",
+  },
+  {
+    id: "REQ-107",
+    col: "reviewing",
+    priority: "P1",
+    title: "Meego 需求同步与字段映射",
+    desc: "定时同步 Meego 需求并完成字段映射，支持状态回写策略与异常告警。",
+    tags: ["Meego", "同步", "数据映射"],
+    author: "李明",
+    date: "2026-03-02",
+    userStory: "作为产品经理，我希望系统自动同步需求并正确映射字段，以便减少手工维护。",
+    acceptanceCriteria: [
+      "支持定时同步与手动触发同步",
+      "字段映射完整且可追溯",
+      "同步失败有明确错误提示",
+    ],
+    aiResult: null,
+    docs: { prd: null, proposals: [] },
+    space: "中科金得助",
+    subsystem: "企业服务",
+    app: "金得助",
+    iteration: "迭代-20260215",
+  },
+  {
+    id: "REQ-108",
+    col: "ai_review",
+    priority: "P0",
+    title: "AI 澄清关键问题弹框确认",
+    desc: "在 AI 需求澄清过程中，对关键决策点使用弹框确认，保证需求信息准确。",
+    tags: ["AI澄清", "弹框", "需求质量"],
+    author: "张晓薇",
+    date: "2026-03-03",
+    userStory: "作为产品经理，我希望关键问题通过弹框确认，以便避免歧义和遗漏。",
+    acceptanceCriteria: [
+      "关键问题触发弹框确认",
+      "确认结果进入上下文继续对话",
+      "支持输入型和选项型确认",
+    ],
+    aiResult: null,
+    docs: { prd: null, proposals: [] },
+    space: "枭龙云国内",
+    subsystem: "云平台",
+    app: "枭龙云控制台",
+    iteration: "迭代-20260201",
+  },
+  {
+    id: "REQ-109",
+    col: "confirm",
+    priority: "P1",
+    title: "多模型 AIClient 路由与回退策略",
+    desc: "通过统一 AIClient 支持 Claude/GLM/ARK 多模型切换，并在失败时提供演示兜底。",
+    tags: ["AI模型", "路由", "兜底"],
+    author: "陈刚",
+    date: "2026-03-03",
+    userStory: "作为产品经理，我希望在不同网络环境下可切换模型，以便保证演示流程不中断。",
+    acceptanceCriteria: [
+      "支持 Claude/GLM/ARK 统一接入",
+      "模型切换配置实时生效",
+      "失败时提供示例数据兜底",
+    ],
+    aiResult: {
+      score: 86,
+      completeness: 88,
+      logic: 85,
+      risk: 82,
+      summary: "多模型路由方案清晰，可满足演示和容灾要求。",
+      risks: ["第三方模型响应差异导致格式不一致", "配置错误会造成请求失败"],
+      suggestions: ["统一输出校验器", "增加连接测试预检查"],
+      passed: true,
+    },
+    docs: { prd: null, proposals: [] },
+    space: "集团",
+    subsystem: "集团中台",
+    app: "统一认证",
+    iteration: "迭代-20260115",
+  },
+  {
+    id: "REQ-110",
+    col: "approved",
+    priority: "P2",
+    title: "规范框架模板中心与版本管理",
+    desc: "为 OpenSpec 等框架提供模板管理能力，支持 proposal/design/spec/tasks 模板配置与版本化。",
+    tags: ["SDD", "模板", "配置中心"],
+    author: "刘洋",
+    date: "2026-03-04",
+    userStory: "作为产品经理，我希望统一管理模板版本，以便不同项目按规范快速生成文档。",
+    acceptanceCriteria: [
+      "支持模板查看、编辑、保存",
+      "支持模板版本记录",
+      "生成流程按当前模板执行",
+    ],
+    aiResult: null,
+    docs: { prd: null, proposals: [] },
+    space: "马上消费",
+    subsystem: "消费金融",
+    app: "风控平台",
+    iteration: "迭代-20260101",
+  },
+  {
+    id: "REQ-111",
+    col: "rejected",
+    priority: "P2",
+    title: "提案评审分屏对比与批注回路",
+    desc: "提供 AI 草稿与人工编辑稿分屏对比，支持段落级批注与状态追踪。",
+    tags: ["评审", "协作", "批注"],
+    author: "王芳",
+    date: "2026-03-04",
+    userStory: "作为评审人，我希望在平台内完成对比和批注闭环，以便减少外部沟通成本。",
+    acceptanceCriteria: [
+      "支持分屏对比与高亮差异",
+      "支持批注新增、回复、解决",
+      "支持版本回溯查看",
+    ],
+    aiResult: null,
+    docs: { prd: null, proposals: [] },
+    space: "中科金得助",
+    subsystem: "企业服务",
+    app: "供应链",
+    iteration: "迭代-20251215",
+  },
+  {
+    id: "REQ-112",
+    col: "submitted",
+    priority: "P1",
+    title: "提案确认后 Git 同步与状态回写",
+    desc: "确认提案后自动同步到 Git 仓库并回写 commit/PR 链接，驱动状态进入已提交列。",
+    tags: ["Git", "状态回写", "提交流程"],
+    author: "陈刚",
+    date: "2026-03-05",
+    userStory: "作为产品经理，我希望一键同步并回写结果，以便开发可直接基于提案开工。",
+    acceptanceCriteria: [
+      "支持 GitHub/GitLab 提交",
+      "提交成功回写链接",
+      "卡片状态流转为已提交",
+    ],
+    aiResult: {
+      score: 84,
+      completeness: 86,
+      logic: 84,
+      risk: 80,
+      summary: "提交流程定义完整，需持续关注权限与冲突策略。",
+      risks: ["Token 失效导致提交失败", "并发提交可能冲突"],
+      suggestions: ["增加重试机制", "提供冲突提示与处理指引"],
+      passed: true,
+    },
+    docs: { prd: null, proposals: [] },
+    space: "枭龙云国际",
+    subsystem: "云平台",
+    app: "枭龙云API",
+    iteration: "迭代-20260301",
+  },
+  {
+    id: "REQ-113",
+    col: "backlog",
+    priority: "P2",
+    title: "历史需求参考推荐面板",
+    desc: "在详情页提供历史需求推荐与外部参考链接管理，辅助需求分析和方案复用。",
+    tags: ["参考资料", "推荐", "知识复用"],
+    author: "张晓薇",
+    date: "2026-03-05",
+    userStory: "作为产品经理，我希望快速看到相似历史需求，以便减少重复设计。",
+    acceptanceCriteria: [
+      "按标签和优先级计算相似度",
+      "展示 Top5 历史需求",
+      "支持手动维护外部参考链接",
+    ],
+    aiResult: null,
+    docs: { prd: null, proposals: [] },
+    space: "集团",
+    subsystem: "集团中台",
+    app: "数据湖",
+    iteration: "迭代-20260215",
+  },
+  {
+    id: "REQ-114",
+    col: "reviewing",
+    priority: "P1",
+    title: "AI Skill 结构化管理与模板恢复",
+    desc: "将 Skill 管理从单 prompt 升级为 SKILL.md + references + scripts 的结构化编辑体验，支持恢复默认模板。",
+    tags: ["Skill", "配置", "可维护性"],
+    author: "李明",
+    date: "2026-03-06",
+    userStory: "作为产品经理，我希望可视化管理每个 Skill 的结构化内容，以便快速调优 AI 行为。",
+    acceptanceCriteria: [
+      "支持 Skill 列表与文件结构切换",
+      "支持保存与恢复默认结构",
+      "支持旧 prompt 自动迁移到 SKILL.md",
+    ],
+    aiResult: null,
+    docs: { prd: null, proposals: [] },
+    space: "枭龙云国内",
+    subsystem: "云平台",
+    app: "云监控",
+    iteration: "迭代-20260201",
+  },
+];
+
+function normalizeSeedCardDimensions(card, index) {
+  const safeSpace = KANBAN_SPACES.includes(card.space)
+    ? card.space
+    : KANBAN_SPACES[index % KANBAN_SPACES.length];
+  const safeSubsystem = KANBAN_SUBSYSTEMS.includes(card.subsystem)
+    ? card.subsystem
+    : KANBAN_SUBSYSTEMS[index % KANBAN_SUBSYSTEMS.length];
+  const apps = KANBAN_APPS[safeSubsystem] || [];
+  const safeApp = apps.includes(card.app) ? card.app : (apps[0] || '未分配应用');
+  const safeIteration = KANBAN_ITERATIONS.includes(card.iteration)
+    ? card.iteration
+    : KANBAN_ITERATIONS[index % KANBAN_ITERATIONS.length];
+  return { ...card, space: safeSpace, subsystem: safeSubsystem, app: safeApp, iteration: safeIteration };
+}
+
+const INITIAL_CARDS = [...BASE_INITIAL_CARDS, ...PRD_SEEDED_SAMPLE_CARDS]
+  .slice(0, 15)
+  .map((card, index) => normalizeSeedCardDimensions(card, index));
+
 /* ═══════════════════════════════ API ══════════════════════════════════════
  * 支持 Claude (Anthropic) 和 GLM-4 (Zhipu)
  * 使用 AIClient 统一接口
@@ -1744,10 +1996,184 @@ const AI_SKILLS = {
   },
 };
 
+const SKILL_STANDARD_FILE_KEYS = [
+  'SKILL.md',
+  'references/req-clarification.md',
+  'references/git-sync-checklist.md',
+  'references/field-mapping.md',
+  'scripts/scriptname.ts',
+];
+
+const SKILL_REFERENCE_TEMPLATES = {
+  'references/req-clarification.md': `# 需求澄清参考
+
+## 目标
+- 识别需求目标与边界
+- 对齐关键业务术语
+
+## 澄清问题清单
+1. 本次需求的成功指标是什么？
+2. 哪些用户角色会受影响？
+3. 有哪些明确的不做范围？
+4. 上线后的验证周期与负责人是谁？
+
+## 输出要求
+- 输出明确结论
+- 标注风险和待确认项
+`,
+  'references/git-sync-checklist.md': `# Git 同步检查清单
+
+## 提交前
+- [ ] 已确认目标仓库与分支
+- [ ] 文档路径符合规范
+- [ ] Token 权限可写
+
+## 提交后
+- [ ] 记录 commit 链接
+- [ ] 校验文档内容已更新
+- [ ] 回填需求状态与备注
+`,
+  'references/field-mapping.md': `# 字段映射
+
+| 需求字段 | Skill 变量 | 说明 |
+| --- | --- | --- |
+| 需求编号 | {{card.id}} | 唯一标识 |
+| 标题 | {{card.title}} | 需求标题 |
+| 描述 | {{card.desc}} | 详细描述 |
+| 用户故事 | {{card.userStory}} | 场景描述 |
+| 验收标准 | {{card.criteria}} | 多条标准合并 |
+| 标签 | {{card.tags}} | 标签列表 |
+| 当前日期 | {{date}} | 生成日期 |
+`,
+};
+
+const SKILL_SCRIPT_TEMPLATE = `export function normalizeSkillInput(payload: Record<string, unknown>) {
+  return {
+    id: String(payload.id || ''),
+    title: String(payload.title || ''),
+    desc: String(payload.desc || ''),
+  }
+}
+
+export function validateSkillInput(payload: Record<string, unknown>) {
+  const errors: string[] = []
+  if (!payload.id) errors.push('id 不能为空')
+  if (!payload.title) errors.push('title 不能为空')
+  return {
+    ok: errors.length === 0,
+    errors,
+  }
+}
+`;
+
+function buildDefaultSkillMarkdown(skillId) {
+  const skill = AI_SKILLS[skillId];
+  if (!skill) return '';
+  const vars = (skill.vars || []).join('、');
+  return `---
+name: pm-${skill.id}-skill
+description: ${skill.desc}
+---
+
+# ${skill.name}
+
+## 使用场景
+${skill.desc}
+
+## 可用变量
+${vars || '无'}
+
+## Prompt Template
+${skill.defaultPrompt}
+`;
+}
+
+function buildDefaultSkillFiles(skillId) {
+  return {
+    'SKILL.md': buildDefaultSkillMarkdown(skillId),
+    ...SKILL_REFERENCE_TEMPLATES,
+    'scripts/scriptname.ts': SKILL_SCRIPT_TEMPLATE,
+  };
+}
+
+function normalizeSkillFilePath(path) {
+  if (typeof path !== 'string') return null;
+  const trimmed = path.trim();
+  if (!trimmed) return null;
+  if (trimmed === 'SKILL.md') return 'SKILL.md';
+  const corrected = trimmed.replace(/^scrips\//, 'scripts/');
+  if (/^references\/[^/]+\.md$/i.test(corrected)) return corrected;
+  if (/^scripts\/[^/]+\.(ts|js|mjs|cjs)$/i.test(corrected)) return corrected;
+  return null;
+}
+
+function inspectSkillFiles(files) {
+  const source = files && typeof files === 'object' ? files : {};
+  const nextFiles = {};
+  const correctedPaths = [];
+  const invalidPaths = [];
+  Object.entries(source).forEach(([rawPath, rawContent]) => {
+    if (typeof rawContent !== 'string') return;
+    const normalizedPath = normalizeSkillFilePath(rawPath);
+    if (!normalizedPath) {
+      invalidPaths.push(rawPath);
+      return;
+    }
+    if (normalizedPath !== rawPath) correctedPaths.push(`${rawPath} -> ${normalizedPath}`);
+    nextFiles[normalizedPath] = rawContent;
+  });
+  return { files: nextFiles, correctedPaths, invalidPaths };
+}
+
+function normalizeSkillConfig(skills) {
+  const source = skills && typeof skills === 'object' ? skills : {};
+  const normalized = {};
+  const correctedPaths = [];
+  const invalidPaths = [];
+
+  Object.keys(AI_SKILLS).forEach(skillId => {
+    const defaults = buildDefaultSkillFiles(skillId);
+    const entry = source[skillId];
+    let rawFiles = {};
+    if (typeof entry === 'string') {
+      rawFiles = { 'SKILL.md': entry };
+    } else if (entry && typeof entry === 'object') {
+      if (typeof entry['SKILL.md'] === 'string') rawFiles['SKILL.md'] = entry['SKILL.md'];
+      if (entry.files && typeof entry.files === 'object') rawFiles = { ...rawFiles, ...entry.files };
+    }
+    const inspected = inspectSkillFiles(rawFiles);
+    correctedPaths.push(...inspected.correctedPaths.map(item => `${skillId}: ${item}`));
+    invalidPaths.push(...inspected.invalidPaths.map(item => `${skillId}: ${item}`));
+    normalized[skillId] = { files: { ...defaults, ...inspected.files } };
+  });
+
+  return { normalized, correctedPaths, invalidPaths };
+}
+
+function stripSkillFrontmatter(skillMarkdown) {
+  const text = typeof skillMarkdown === 'string' ? skillMarkdown : '';
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('---')) return trimmed;
+  const endIdx = trimmed.indexOf('\n---', 3);
+  if (endIdx === -1) return trimmed;
+  return trimmed.slice(endIdx + 4).trim();
+}
+
+function getSkillPromptTemplate(skills, skillId) {
+  const entry = skills?.[skillId];
+  if (typeof entry === 'string') return entry;
+  const skillMarkdown = entry?.files?.['SKILL.md'] || entry?.['SKILL.md'];
+  if (typeof skillMarkdown === 'string' && skillMarkdown.trim()) {
+    return stripSkillFrontmatter(skillMarkdown);
+  }
+  return AI_SKILLS[skillId]?.defaultPrompt || '';
+}
+
 function resolveSkillPrompt(skillId, card, extra = {}) {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem('ai_skill_prompts') || '{}'); } catch {}
-  const template = saved[skillId] || AI_SKILLS[skillId]?.defaultPrompt || '';
+  const normalizedSkills = normalizeSkillConfig(saved).normalized;
+  const template = getSkillPromptTemplate(normalizedSkills, skillId);
   const date = new Date().toLocaleDateString('zh-CN');
   const criteria = Array.isArray(card?.acceptanceCriteria) ? card.acceptanceCriteria.join('；') : '';
   const tags = Array.isArray(card?.tags) ? card.tags.join('、') : '';
@@ -2474,17 +2900,17 @@ function DetailDrawer({card,onClose,onAIReview,onAIDesign,reviewing,onMoveCard,s
   const rawDisplay = getDisplayRawRequirement(card);
   const rawBaseInfo = rawDisplay.baseInfo;
 
-  const [activeTab, setActiveTab] = useState("review");
+  const [activeTab, setActiveTab] = useState("raw");
   const [rawEditMode, setRawEditMode] = useState(false);
-  const [rawEditText, setRawEditText] = useState(rawRequirement);
+  const [rawEditText, setRawEditText] = useState(rawDisplay.content);
   const [meegoSyncing, setMeegoSyncing] = useState(false);
   const [meegoSyncResult, setMeegoSyncResult] = useState(null);
 
   useEffect(() => {
     if (!card) return;
-    setActiveTab("review");
+    setActiveTab("raw");
     setRawEditMode(false);
-    setRawEditText(typeof card.rawRequirement === 'string' ? card.rawRequirement : '');
+    setRawEditText(getDisplayRawRequirement(card).content);
     setMeegoSyncing(false);
     setMeegoSyncResult(null);
   }, [card]);
@@ -2504,7 +2930,7 @@ function DetailDrawer({card,onClose,onAIReview,onAIDesign,reviewing,onMoveCard,s
   const criteriaList = normalizeAcceptanceCriteria(card.acceptanceCriteria);
 
   const startRawEdit = () => {
-    setRawEditText(rawRequirement);
+    setRawEditText(rawDisplay.content);
     setRawEditMode(true);
     setMeegoSyncResult(null);
   };
@@ -2515,7 +2941,7 @@ function DetailDrawer({card,onClose,onAIReview,onAIDesign,reviewing,onMoveCard,s
   };
 
   const handleCancelRaw = () => {
-    setRawEditText(rawRequirement);
+    setRawEditText(rawDisplay.content);
     setRawEditMode(false);
   };
 
@@ -2700,10 +3126,16 @@ function DetailDrawer({card,onClose,onAIReview,onAIDesign,reviewing,onMoveCard,s
               <Lbl>原始需求（Meego）</Lbl>
               <span style={{marginLeft:"auto"}}>
                 {!rawEditMode && (
-                  <button onClick={startRawEdit}
-                    style={{height:30,padding:"0 12px",borderRadius:6,border:`1px solid ${C.border}`,background:C.white,cursor:"pointer",fontSize:12,color:C.ink,fontWeight:600}}>
-                    ✎ 编辑
-                  </button>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <button onClick={startRawEdit}
+                      style={{height:30,padding:"0 12px",borderRadius:6,border:`1px solid ${C.border}`,background:C.white,cursor:"pointer",fontSize:12,color:C.ink,fontWeight:600}}>
+                      ✎ 编辑
+                    </button>
+                    <button onClick={handleSyncMeego} disabled={meegoSyncing}
+                      style={{height:30,padding:"0 12px",borderRadius:6,border:"none",cursor:meegoSyncing?"wait":"pointer",background:meegoSyncing?C.border:C.teal,color:meegoSyncing?C.muted:"#fff",fontSize:12,fontWeight:600}}>
+                      {meegoSyncing ? "同步中…" : "同步到 Meego"}
+                    </button>
+                  </div>
                 )}
               </span>
             </div>
@@ -2713,7 +3145,9 @@ function DetailDrawer({card,onClose,onAIReview,onAIDesign,reviewing,onMoveCard,s
                 {rawDisplay.isSample && (
                   <div style={{marginBottom:8,fontSize:11,color:C.muted,fontWeight:600}}>示例内容（来自 PRD 摘录）</div>
                 )}
-                <div style={{fontSize:13,color:C.ink,lineHeight:1.75,whiteSpace:"pre-wrap",background:C.cream,padding:"14px 16px",borderRadius:8,border:`1px solid ${C.border}`}}>{rawDisplay.content}</div>
+                <div className="doc-content" style={{fontSize:13,color:C.ink,lineHeight:1.75,background:C.cream,padding:"14px 16px",borderRadius:8,border:`1px solid ${C.border}`}}>
+                  <MarkdownRenderer content={rawDisplay.content} />
+                </div>
               </div>
             ) : (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -2735,14 +3169,6 @@ function DetailDrawer({card,onClose,onAIReview,onAIDesign,reviewing,onMoveCard,s
               </div>
             )}
 
-            {!rawEditMode && (
-              <div style={{display:"flex",justifyContent:"flex-end",marginTop:14}}>
-                <button onClick={handleSyncMeego} disabled={meegoSyncing}
-                  style={{height:32,padding:"0 14px",borderRadius:7,border:"none",cursor:meegoSyncing?"wait":"pointer",background:meegoSyncing?C.border:C.teal,color:meegoSyncing?C.muted:"#fff",fontSize:12,fontWeight:600}}>
-                  {meegoSyncing ? "同步中…" : "同步到 Meego"}
-                </button>
-              </div>
-            )}
           </>
         )}
       </div>
@@ -3074,18 +3500,76 @@ function GeneratePrompt({card, docMeta, onGenerate, isGenerating}) {
   );
 }
 
-/* ═══════════════════════ ADD CARD MODAL ════════════════════════════════════ */
-function AddCardModal({onAdd,onClose}) {
+/* ═══════════════════════ ADD CARD DRAWER ═══════════════════════════════════ */
+function AddCardDrawer({onAdd,onClose}) {
   const [form,setForm]=useState({title:"",desc:"",userStory:"",priority:"P1",tags:"",criteria:"",author:""});
+  const [aiGenerating, setAIGenerating] = useState(false);
+  const [aiError, setAIError] = useState("");
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
   const sty={width:"100%",padding:"9px 12px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:13,background:C.cream,outline:"none",boxSizing:"border-box",resize:"vertical",fontFamily:"'Noto Sans SC',sans-serif"};
+  const handleAIAssistGenerate = async () => {
+    setAIError("");
+    setAIGenerating(true);
+    try {
+      const prompt = `你是资深产品经理助手。请根据以下上下文生成一份结构化需求草稿，严格返回 JSON，不要输出任何额外文本。
+上下文：
+- 标题提示：${form.title || ""}
+- 描述提示：${form.desc || ""}
+- 用户故事提示：${form.userStory || ""}
+- 验收标准提示：${form.criteria || ""}
+- 标签提示：${form.tags || ""}
+- 提交人提示：${form.author || ""}
+
+返回 JSON 结构：
+{"title":"","desc":"","userStory":"","criteria":[""],"tags":[""],"author":""}`;
+      const text = await callAI(prompt, 800);
+      const cleaned = text.replace(/```json|```/g, "").trim();
+      let parsed;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch {
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("AI 返回格式无法解析");
+        parsed = JSON.parse(jsonMatch[0]);
+      }
+      setForm(prev => ({
+        ...prev,
+        title: typeof parsed.title === "string" && parsed.title.trim() ? parsed.title.trim() : prev.title,
+        desc: typeof parsed.desc === "string" && parsed.desc.trim() ? parsed.desc.trim() : prev.desc,
+        userStory: typeof parsed.userStory === "string" && parsed.userStory.trim() ? parsed.userStory.trim() : prev.userStory,
+        criteria: Array.isArray(parsed.criteria)
+          ? parsed.criteria.filter(Boolean).map(x => String(x).trim()).filter(Boolean).join("\n") || prev.criteria
+          : (typeof parsed.criteria === "string" && parsed.criteria.trim() ? parsed.criteria.trim() : prev.criteria),
+        tags: Array.isArray(parsed.tags)
+          ? parsed.tags.filter(Boolean).map(x => String(x).trim()).filter(Boolean).join("，") || prev.tags
+          : (typeof parsed.tags === "string" && parsed.tags.trim() ? parsed.tags.trim() : prev.tags),
+        author: typeof parsed.author === "string" && parsed.author.trim() ? parsed.author.trim() : prev.author,
+      }));
+    } catch (e) {
+      setAIError(getAIErrorMessage(e));
+    } finally {
+      setAIGenerating(false);
+    }
+  };
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <div style={{background:C.white,borderRadius:12,width:520,maxHeight:"85vh",overflowY:"auto",padding:"24px 28px",boxShadow:"0 24px 64px rgba(0,0,0,0.2)"}}>
-        <div style={{display:"flex",alignItems:"center",marginBottom:20}}>
+    <>
+      <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.22)",zIndex:149}}/>
+      <div style={{position:"fixed",top:0,right:0,bottom:0,width:"60vw",background:C.white,boxShadow:"-4px 0 24px rgba(0,0,0,0.15)",zIndex:150,display:"flex",flexDirection:"column",animation:"slideIn 0.3s ease"}}>
+        <style>{`
+          @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+          }
+        `}</style>
+        <div style={{padding:"16px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
           <h3 style={{margin:0,fontSize:16,fontWeight:700,color:C.ink}}>新建需求</h3>
-          <button onClick={onClose} style={{marginLeft:"auto",background:"none",border:"none",fontSize:20,cursor:"pointer",color:C.muted}}>×</button>
+          <button onClick={onClose} style={{marginLeft:"auto",background:"none",border:"none",fontSize:20,cursor:"pointer",color:C.muted,padding:"0 4px",lineHeight:1}}>×</button>
         </div>
+        <div style={{flex:1,overflowY:"auto",padding:"20px"}}>
+        <div style={{fontSize:12,color:C.muted,marginBottom:14,padding:"8px 10px",border:`1px solid ${C.border}`,borderRadius:8,background:C.cream}}>
+          可在底部点击“AI 辅助生成”，根据当前输入生成需求草稿。
+        </div>
+        {aiError && <div style={{fontSize:12,color:C.danger,marginBottom:10}}>{aiError}</div>}
         {[["需求标题 *","title","input"],["需求描述","desc","ta"],["用户故事","userStory","ta"],["验收标准（每行一条）","criteria","ta"],["标签（中文逗号分隔）","tags","input"],["提交人","author","input"]].map(([lbl,key,t])=>(
           <div key={key} style={{marginBottom:13}}>
             <Lbl>{lbl}</Lbl>
@@ -3103,15 +3587,20 @@ function AddCardModal({onAdd,onClose}) {
             ))}
           </div>
         </div>
-        <div style={{display:"flex",gap:10}}>
-          <button onClick={onClose} style={{flex:1,padding:"10px 0",borderRadius:8,border:`1px solid ${C.border}`,background:C.white,color:C.muted,cursor:"pointer",fontSize:14}}>取消</button>
-          <button onClick={()=>{if(!form.title.trim())return;onAdd({id:`REQ-${String(Date.now()).slice(-3)}`,col:"backlog",priority:form.priority,title:form.title,desc:form.desc,tags:form.tags.split("，").map(t=>t.trim()).filter(Boolean),author:form.author||"我",date:new Date().toISOString().slice(0,10),userStory:form.userStory,acceptanceCriteria:form.criteria.split("\n").map(c=>c.trim()).filter(Boolean),aiResult:null,docs:mkDocs()});onClose();}}
+        </div>
+        <div style={{padding:"12px 20px",borderTop:`1px solid ${C.border}`,display:"flex",gap:10,background:C.white,flexShrink:0}}>
+          <button onClick={()=>{if(!form.title.trim())return;onAdd({id:`REQ-${String(Date.now()).slice(-3)}`,col:"backlog",priority:form.priority,title:form.title,desc:form.desc,tags:form.tags.split(/[，,]/).map(t=>t.trim()).filter(Boolean),author:form.author||"我",date:new Date().toISOString().slice(0,10),userStory:form.userStory,acceptanceCriteria:form.criteria.split("\n").map(c=>c.trim()).filter(Boolean),aiResult:null,docs:mkDocs()});onClose();}}
             style={{flex:2,padding:"10px 0",borderRadius:8,border:"none",background:C.accent,color:"#fff",fontWeight:700,cursor:"pointer",fontSize:14}}>
             创建需求
           </button>
+          <button onClick={handleAIAssistGenerate} disabled={aiGenerating}
+            style={{flex:1,padding:"10px 0",borderRadius:8,border:"none",cursor:aiGenerating?"wait":"pointer",background:aiGenerating?C.border:C.purple,color:aiGenerating?C.muted:"#fff",fontWeight:700,fontSize:14}}>
+            {aiGenerating ? "AI 生成中…" : "AI 辅助生成"}
+          </button>
+          <button onClick={onClose} style={{flex:1,padding:"10px 0",borderRadius:8,border:`1px solid ${C.border}`,background:C.white,color:C.muted,cursor:"pointer",fontSize:14}}>取消</button>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -3209,7 +3698,7 @@ function ImportDrawer({ visible, onClose }) {
   return (
     <>
       <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.22)",zIndex:149}}/>
-      <div style={{position:"fixed",top:0,right:0,bottom:0,width:480,background:C.white,boxShadow:"-4px 0 24px rgba(0,0,0,0.15)",zIndex:150,display:"flex",flexDirection:"column",animation:"slideIn 0.3s ease"}}>
+      <div style={{position:"fixed",top:0,right:0,bottom:0,width:"60vw",background:C.white,boxShadow:"-4px 0 24px rgba(0,0,0,0.15)",zIndex:150,display:"flex",flexDirection:"column",animation:"slideIn 0.3s ease"}}>
         <style>{`
           @keyframes slideIn {
             from { transform: translateX(100%); }
@@ -4648,6 +5137,7 @@ function loadProjectConfig() {
   try {
     const saved = localStorage.getItem('project-config');
     const base = saved ? JSON.parse(saved) : {};
+    const normalizedSkills = normalizeSkillConfig(base.skills).normalized;
     return {
       project: normalizeProjectAssociationConfig(base.project),
       ai: {
@@ -4669,15 +5159,17 @@ function loadProjectConfig() {
       },
       git: { ...DEFAULT_PROJECT_CONFIG.git, ...(base.git || {}) },
       sdd: { ...DEFAULT_PROJECT_CONFIG.sdd, ...(base.sdd || {}) },
-      skills: { ...DEFAULT_PROJECT_CONFIG.skills, ...(base.skills || {}) },
+      skills: { ...DEFAULT_PROJECT_CONFIG.skills, ...normalizedSkills },
     };
   } catch { return { ...DEFAULT_PROJECT_CONFIG }; }
 }
 
 function saveProjectConfig(config) {
-  localStorage.setItem('project-config', JSON.stringify(config));
-  localStorage.setItem('ai_model_selected', config.ai.model);
-  const ai = config.ai;
+  const skillNormalized = normalizeSkillConfig(config.skills).normalized;
+  const normalizedConfig = { ...config, skills: skillNormalized };
+  localStorage.setItem('project-config', JSON.stringify(normalizedConfig));
+  localStorage.setItem('ai_model_selected', normalizedConfig.ai.model);
+  const ai = normalizedConfig.ai;
   const set = (key, val) => val?.trim() ? localStorage.setItem(key, val.trim()) : localStorage.removeItem(key);
   set('ai_model_claude_key',        ai.anthropicKey);
   set('ai_model_claude_baseurl',    ai.anthropicBaseUrl);
@@ -4693,7 +5185,8 @@ function saveProjectConfig(config) {
   set('ai_model_custom_model',      ai.customModel);
   set('ai_model_custom_key',        ai.customKey);
   set('ai_model_custom_authstyle',  ai.customAuthStyle);
-  if (config.skills) localStorage.setItem('ai_skill_prompts', JSON.stringify(config.skills));
+  if (normalizedConfig.skills) localStorage.setItem('ai_skill_prompts', JSON.stringify(normalizedConfig.skills));
+  return normalizedConfig;
 }
 
 function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
@@ -4733,6 +5226,8 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
   const [gitTestMsg, setGitTestMsg]     = useState('');
   const [savedProject, setSavedProject] = useState(false);
   const [savedAI, setSavedAI]           = useState(false);
+  const [aiTestStatus, setAiTestStatus] = useState(null);
+  const [aiTestMsg, setAiTestMsg]       = useState('');
   const [savedGit, setSavedGit]         = useState(false);
   const [sddFramework, setSddFramework] = useState(projectConfig.sdd?.framework || 'openspec');
   const [sddTemplates, setSddTemplates] = useState(() => {
@@ -4744,7 +5239,9 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
   const [activeTemplate, setActiveTemplate] = useState('proposal');
   const [savedSdd, setSavedSdd]         = useState(false);
   const [activeSkill, setActiveSkill]   = useState('review');
-  const [skillPrompts, setSkillPrompts] = useState(() => ({ ...projectConfig.skills }));
+  const [skillConfigs, setSkillConfigs] = useState(() => normalizeSkillConfig(projectConfig.skills).normalized);
+  const [activeSkillFile, setActiveSkillFile] = useState('SKILL.md');
+  const [skillValidationMsg, setSkillValidationMsg] = useState('');
   const [savedSkills, setSavedSkills]   = useState(false);
 
   const scrollContainerRef = useRef(null);
@@ -4798,7 +5295,7 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
     { id: 'git',    label: 'Git 仓库配置', icon: '⛓' },
     { id: 'ai',     label: 'AI 模型配置', icon: '✦' },
     { id: 'sdd',    label: 'SDD 框架',    icon: '📐' },
-    { id: 'skills', label: 'AI Skill',    icon: '🎯' },
+    { id: 'skills', label: 'Agent Skill',    icon: '🎯' },
   ];
 
   const sectionStyle = { background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, padding: 24, marginBottom: 24 };
@@ -4806,6 +5303,64 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
   const inputStyle   = { width: '100%', padding: '8px 12px', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.cream, color: C.ink, outline: 'none', boxSizing: 'border-box', fontFamily: "'DM Mono',monospace" };
   const errStyle     = { fontSize: 11, color: C.danger, marginTop: 4 };
   const multiBoxStyle = { border: `1px solid ${C.border}`, borderRadius: 6, background: C.cream, padding: 8, display: 'grid', gap: 6, marginBottom: 10 };
+
+  const handleTestAI = async () => {
+    setAiTestStatus('testing');
+    setAiTestMsg('');
+    try {
+      let res, data;
+      if (aiModel === 'claude') {
+        const endpoint = anthropicBaseUrl.trim() || '/api/anthropic/v1/messages';
+        res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model: anthropicModel.trim() || 'claude-sonnet-4-20250514', max_tokens: 5, messages: [{ role: 'user', content: 'Hi' }] }),
+        });
+        data = await res.json();
+        if (data.error) throw new Error(data.error.message || '请求失败');
+        setAiTestStatus('success');
+        setAiTestMsg(`测试成功（Claude）: ${data.content?.[0]?.text?.slice(0, 40) || 'OK'}`);
+      } else if (aiModel === 'glm') {
+        const endpoint = glmBaseUrl.trim() || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+        res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${glmKey}` },
+          body: JSON.stringify({ model: glmModel.trim() || 'glm-4', max_tokens: 5, messages: [{ role: 'user', content: 'Hi' }] }),
+        });
+        data = await res.json();
+        if (!res.ok || data.error) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+        setAiTestStatus('success');
+        setAiTestMsg(`测试成功（GLM）: ${data.choices?.[0]?.message?.content?.slice(0, 40) || 'OK'}`);
+      } else if (aiModel === 'ark') {
+        const base = arkBaseUrl.trim() || 'https://ark.cn-beijing.volces.com/api/coding/v3';
+        res = await fetch(`${base}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${arkKey}` },
+          body: JSON.stringify({ model: arkModel.trim() || 'ark-code-latest', max_tokens: 5, messages: [{ role: 'user', content: 'Hi' }] }),
+        });
+        data = await res.json();
+        if (!res.ok || data.error) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+        setAiTestStatus('success');
+        setAiTestMsg(`测试成功（ARK）: ${data.choices?.[0]?.message?.content?.slice(0, 40) || 'OK'}`);
+      } else if (aiModel === 'custom') {
+        const headers = { 'Content-Type': 'application/json' };
+        if (customAuthStyle === 'x-api-key') headers['x-api-key'] = customKey;
+        else headers['Authorization'] = `Bearer ${customKey}`;
+        res = await fetch(`${customBaseUrl.trim()}/chat/completions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ model: customModel.trim(), max_tokens: 5, messages: [{ role: 'user', content: 'Hi' }] }),
+        });
+        data = await res.json();
+        if (!res.ok || data.error) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+        setAiTestStatus('success');
+        setAiTestMsg(`测试成功（自定义）: ${data.choices?.[0]?.message?.content?.slice(0, 40) || 'OK'}`);
+      }
+    } catch (e) {
+      setAiTestStatus('error');
+      setAiTestMsg(e.message?.startsWith('网络') ? e.message : `请求失败: ${e.message}`);
+    }
+  };
 
   const handleSaveAI = () => {
     const config = { ...projectConfig, ai: {
@@ -4815,8 +5370,8 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
       arkKey, arkBaseUrl, arkModel,
       customName, customBaseUrl, customModel, customKey, customAuthStyle,
     }};
-    saveProjectConfig(config);
-    onSave(config);
+    const normalizedConfig = saveProjectConfig(config);
+    onSave(normalizedConfig);
     setSavedAI(true);
     setTimeout(() => setSavedAI(false), 2000);
   };
@@ -4830,8 +5385,8 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
         appIds: projectAppIds,
       },
     };
-    saveProjectConfig(config);
-    onSave(config);
+    const normalizedConfig = saveProjectConfig(config);
+    onSave(normalizedConfig);
     setSavedProject(true);
     setTimeout(() => setSavedProject(false), 2000);
   };
@@ -4885,8 +5440,8 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
     if (Object.keys(errs).length > 0) { setGitErrors(errs); return; }
     setGitErrors({});
     const config = { ...projectConfig, git: { platform: gitPlatform, repoUrl: repoUrl.trim(), branch: branch.trim() || 'main', token: gitToken.trim() } };
-    saveProjectConfig(config);
-    onSave(config);
+    const normalizedConfig = saveProjectConfig(config);
+    onSave(normalizedConfig);
     setSavedGit(true);
     setTimeout(() => setSavedGit(false), 2000);
   };
@@ -4917,19 +5472,46 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
 
   const handleSaveSdd = () => {
     const config = { ...projectConfig, sdd: { framework: sddFramework, templates: sddTemplates } };
-    saveProjectConfig(config);
-    onSave(config);
+    const normalizedConfig = saveProjectConfig(config);
+    onSave(normalizedConfig);
     setSavedSdd(true);
     setTimeout(() => setSavedSdd(false), 2000);
   };
 
   const handleSaveSkills = () => {
-    const config = { ...projectConfig, skills: skillPrompts };
-    saveProjectConfig(config);
-    onSave(config);
+    const inspected = normalizeSkillConfig(skillConfigs);
+    if (inspected.invalidPaths.length > 0) {
+      setSkillValidationMsg(`存在非法路径，已阻止保存：${inspected.invalidPaths.join('；')}`);
+      return;
+    }
+    const config = { ...projectConfig, skills: inspected.normalized };
+    const normalizedConfig = saveProjectConfig(config);
+    onSave(normalizedConfig);
+    setSkillConfigs(inspected.normalized);
+    if (inspected.correctedPaths.length > 0) {
+      setSkillValidationMsg(`已自动纠正路径：${inspected.correctedPaths.join('；')}`);
+    } else {
+      setSkillValidationMsg('');
+    }
     setSavedSkills(true);
     setTimeout(() => setSavedSkills(false), 2000);
   };
+
+  const activeSkillMeta = AI_SKILLS[activeSkill];
+  const activeSkillFiles = skillConfigs[activeSkill]?.files || buildDefaultSkillFiles(activeSkill);
+  const activeSkillFileContent = activeSkillFiles[activeSkillFile] ?? '';
+
+  useEffect(() => {
+    setActiveSkillFile('SKILL.md');
+    setSkillValidationMsg('');
+  }, [activeSkill]);
+
+  useEffect(() => {
+    if (activeSkillFiles[activeSkillFile] == null) {
+      const fallback = SKILL_STANDARD_FILE_KEYS.find(key => activeSkillFiles[key] != null) || 'SKILL.md';
+      setActiveSkillFile(fallback);
+    }
+  }, [activeSkillFiles, activeSkillFile]);
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: C.paper, fontFamily: "'Noto Sans SC',sans-serif" }}>
@@ -5219,10 +5801,29 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
                   </>
                 )}
 
+                {aiTestStatus && (
+                  <div style={{ padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 12,
+                    background: aiTestStatus === 'success' ? C.successLight : aiTestStatus === 'error' ? C.dangerLight : C.accentLight,
+                    color: aiTestStatus === 'success' ? C.success : aiTestStatus === 'error' ? C.danger : C.accent,
+                    border: `1px solid ${(aiTestStatus === 'success' ? C.success : aiTestStatus === 'error' ? C.danger : C.accent)}33` }}>
+                    {aiTestStatus === 'testing' ? '⟳ 测试中…' : aiTestMsg}
+                  </div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <button onClick={handleSaveAI}
                     style={{ padding: '8px 20px', background: C.accent, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                     保存 AI 配置
+                  </button>
+                  <button onClick={handleTestAI} disabled={aiTestStatus === 'testing' || (
+                    aiModel === 'claude' ? !anthropicKey.trim() :
+                    aiModel === 'glm'    ? !glmKey.trim() :
+                    aiModel === 'ark'    ? !arkKey.trim() :
+                    !customKey.trim() || !customBaseUrl.trim() || !customModel.trim()
+                  )}
+                    style={{ padding: '8px 16px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, color: C.ink,
+                      cursor: aiTestStatus === 'testing' ? 'wait' : 'pointer',
+                      opacity: (aiTestStatus === 'testing' || (aiModel === 'claude' ? !anthropicKey.trim() : aiModel === 'glm' ? !glmKey.trim() : aiModel === 'ark' ? !arkKey.trim() : !customKey.trim() || !customBaseUrl.trim() || !customModel.trim())) ? 0.45 : 1 }}>
+                    {aiTestStatus === 'testing' ? '测试中…' : '测试请求'}
                   </button>
                   {savedAI && <span style={{ fontSize: 12, color: C.success }}>✓ 已保存</span>}
                 </div>
@@ -5286,67 +5887,117 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
 
           {/* AI Skill 管理板块 */}
           <div ref={skillsRef} style={{ marginBottom: 48 }}>
-              <h2 style={{ fontWeight: 700, fontSize: 18, color: C.ink, marginBottom: 4 }}>AI Skill 管理</h2>
-              <p style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>自定义各 AI 功能的 prompt 模板，使用 {'{{'+'card.title'+'}}'}  等占位符引用需求字段。</p>
-              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-                {/* 左侧 SKILL 列表 */}
-                <div style={{ width: 140, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {Object.values(AI_SKILLS).map(skill => (
-                    <button key={skill.id} onClick={() => setActiveSkill(skill.id)}
-                      style={{ width: '100%', padding: '8px 12px', textAlign: 'left', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13,
-                        background: activeSkill === skill.id ? C.accentLight : 'transparent',
-                        color: activeSkill === skill.id ? C.accent : C.ink,
-                        fontWeight: activeSkill === skill.id ? 600 : 400,
-                        fontFamily: 'inherit' }}>
-                      {skill.icon} {skill.name}
+              <h2 style={{ fontWeight: 700, fontSize: 18, color: C.ink, marginBottom: 4 }}>Agent Skill 管理</h2>
+              <p style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>系统内置标准 Skill 模板，支持按 Skill 与文件结构快速浏览和编辑。</p>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'stretch', flexWrap: 'wrap' }}>
+                <div style={{ ...sectionStyle, margin: 0, width: 420, flexShrink: 0, padding: 0, display: 'flex', overflow: 'hidden' }}>
+                  <div style={{ width: 172, flexShrink: 0, padding: 10, borderRight: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 8, fontWeight: 700 }}>Skill 列表</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {Object.values(AI_SKILLS).map(skill => (
+                      <button key={skill.id} onClick={() => setActiveSkill(skill.id)}
+                        style={{ width: '100%', padding: '7px 9px', textAlign: 'left', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12,
+                          background: activeSkill === skill.id ? C.accentLight : 'transparent',
+                          color: activeSkill === skill.id ? C.accent : C.ink,
+                          fontWeight: activeSkill === skill.id ? 600 : 400,
+                          fontFamily: 'inherit' }}>
+                        {skill.icon} {skill.name}
+                      </button>
+                    ))}
+                  </div>
+                  </div>
+
+                  <div style={{ width: 248, flexShrink: 0, padding: 10 }}>
+                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 8, fontWeight: 700 }}>文件结构</div>
+                  <button onClick={() => setActiveSkillFile('SKILL.md')}
+                    style={{ width: '100%', border: 'none', borderRadius: 6, textAlign: 'left', cursor: 'pointer', padding: '7px 9px', fontSize: 12,
+                      background: activeSkillFile === 'SKILL.md' ? C.accentLight : 'transparent',
+                      color: activeSkillFile === 'SKILL.md' ? C.accent : C.ink,
+                      fontWeight: activeSkillFile === 'SKILL.md' ? 600 : 400,
+                      boxShadow: activeSkillFile === 'SKILL.md' ? `inset 2px 0 0 ${C.accent}` : 'none' }}>
+                    📄 SKILL.md
+                  </button>
+
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 10, marginBottom: 4 }}>references/</div>
+                  {Object.keys(activeSkillFiles).filter(path => path.startsWith('references/')).map(path => (
+                    <button key={path} onClick={() => setActiveSkillFile(path)}
+                      style={{ width: '100%', border: 'none', borderRadius: 6, textAlign: 'left', cursor: 'pointer', padding: '6px 9px', fontSize: 12,
+                        background: activeSkillFile === path ? C.accentLight : 'transparent',
+                        color: activeSkillFile === path ? C.accent : C.ink,
+                        fontWeight: activeSkillFile === path ? 600 : 400,
+                        paddingLeft: 20,
+                        boxShadow: activeSkillFile === path ? `inset 2px 0 0 ${C.accent}` : 'none' }}>
+                      📘 {path.replace('references/', '')}
                     </button>
                   ))}
+
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 10, marginBottom: 4 }}>scripts/</div>
+                  {Object.keys(activeSkillFiles).filter(path => path.startsWith('scripts/')).map(path => (
+                    <button key={path} onClick={() => setActiveSkillFile(path)}
+                      style={{ width: '100%', border: 'none', borderRadius: 6, textAlign: 'left', cursor: 'pointer', padding: '6px 9px', fontSize: 12,
+                        background: activeSkillFile === path ? C.accentLight : 'transparent',
+                        color: activeSkillFile === path ? C.accent : C.ink,
+                        fontWeight: activeSkillFile === path ? 600 : 400,
+                        paddingLeft: 20,
+                        boxShadow: activeSkillFile === path ? `inset 2px 0 0 ${C.accent}` : 'none' }}>
+                      🧩 {path.replace('scripts/', '')}
+                    </button>
+                  ))}
+                  </div>
                 </div>
 
-                {/* 右侧编辑区 */}
-                <div style={{ flex: 1 }}>
-                  {(() => {
-                    const skill = AI_SKILLS[activeSkill];
-                    return (
-                      <div style={{ ...sectionStyle, margin: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 15, color: C.ink, marginBottom: 4 }}>{skill.icon} {skill.name}</div>
-                        <div style={{ fontSize: 12, color: C.muted, marginBottom: 14 }}>{skill.desc}</div>
+                <div style={{ flex: 1, minWidth: 320 }}>
+                  <div style={{ ...sectionStyle, margin: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: C.ink, marginBottom: 4 }}>{activeSkillMeta?.icon} {activeSkillMeta?.name}</div>
+                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{activeSkillMeta?.desc}</div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>当前文件：<span style={{ color: C.ink, fontFamily: "'DM Mono',monospace" }}>{activeSkillFile}</span></div>
 
-                        {/* 占位符 badge 列表 */}
-                        <div style={{ marginBottom: 12 }}>
-                          <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 500 }}>可用占位符（点击复制）</div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                            {skill.vars.map(v => (
-                              <button key={v} onClick={() => navigator.clipboard.writeText('{{' + v + '}}')}
-                                style={{ padding: '3px 8px', borderRadius: 4, border: `1px solid ${C.accent}44`, background: C.accentLight,
-                                  color: C.accent, fontSize: 11, cursor: 'pointer', fontFamily: "'DM Mono', monospace" }}>
-                                {'{{'}{v}{'}}'}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <textarea
-                          value={skillPrompts[activeSkill] ?? skill.defaultPrompt}
-                          onChange={e => setSkillPrompts(v => ({ ...v, [activeSkill]: e.target.value }))}
-                          style={{ ...inputStyle, height: 320, resize: 'vertical', lineHeight: 1.6, padding: '10px 12px', marginBottom: 12,
-                            fontFamily: "'DM Mono', monospace", fontSize: 12 }}
-                        />
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                          <button onClick={handleSaveSkills}
-                            style={{ padding: '8px 20px', background: C.accent, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                            保存 Skill
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 500 }}>可用占位符（点击复制）</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {(activeSkillMeta?.vars || []).map(v => (
+                          <button key={v} onClick={() => navigator.clipboard.writeText(v)}
+                            style={{ padding: '3px 8px', borderRadius: 4, border: `1px solid ${C.accent}44`, background: C.accentLight,
+                              color: C.accent, fontSize: 11, cursor: 'pointer', fontFamily: "'DM Mono', monospace" }}>
+                            {v}
                           </button>
-                          <button onClick={() => setSkillPrompts(v => { const n = { ...v }; delete n[activeSkill]; return n; })}
-                            style={{ padding: '8px 14px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, cursor: 'pointer', fontSize: 13, color: C.ink }}>
-                            恢复默认
-                          </button>
-                          {savedSkills && <span style={{ fontSize: 12, color: C.success }}>✓ 已保存</span>}
-                        </div>
+                        ))}
                       </div>
-                    );
-                  })()}
+                    </div>
+
+                    <textarea
+                      value={activeSkillFileContent}
+                      onChange={e => setSkillConfigs(prev => ({
+                        ...prev,
+                        [activeSkill]: {
+                          files: {
+                            ...(prev[activeSkill]?.files || buildDefaultSkillFiles(activeSkill)),
+                            [activeSkillFile]: e.target.value,
+                          },
+                        },
+                      }))}
+                      style={{ ...inputStyle, height: 340, resize: 'vertical', lineHeight: 1.6, padding: '10px 12px', marginBottom: 12,
+                        fontFamily: "'DM Mono', monospace", fontSize: 12 }}
+                    />
+
+                    {skillValidationMsg && <div style={{ fontSize: 11, color: C.warn, marginBottom: 10 }}>{skillValidationMsg}</div>}
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <button onClick={handleSaveSkills}
+                        style={{ padding: '8px 20px', background: C.accent, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                        保存 Skill
+                      </button>
+                      <button onClick={() => {
+                        setSkillConfigs(prev => ({ ...prev, [activeSkill]: { files: buildDefaultSkillFiles(activeSkill) } }));
+                        setActiveSkillFile('SKILL.md');
+                        setSkillValidationMsg('已恢复默认结构，点击保存后生效');
+                      }}
+                        style={{ padding: '8px 14px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, cursor: 'pointer', fontSize: 13, color: C.ink }}>
+                        恢复默认结构
+                      </button>
+                      {savedSkills && <span style={{ fontSize: 12, color: C.success }}>✓ 已保存</span>}
+                    </div>
+                  </div>
                 </div>
               </div>
           </div>
@@ -5470,17 +6121,17 @@ function ApiKeyModal({ onClose }) {
 
 /* ═══════════════════════════ MULTI SELECT FILTER ═══════════════════════════ */
 function MultiSelectFilter({
-  availableSpaces, availableIterations, availableSubsystems, availableApps,
-  selectedSpaces, selectedIterations, selectedSubsystems, selectedApps,
-  spaceOpen, iterationOpen, subsystemOpen, appOpen,
-  onSpaceOpen, onIterationOpen, onSubsystemOpen, onAppOpen,
-  onSpaceToggle, onIterationToggle, onSubsystemToggle, onAppToggle,
+  availableSpaces, availableIterations, availableSubsystems, availableApps, availableAssignees,
+  selectedSpaces, selectedIterations, selectedSubsystems, selectedApps, selectedAssignees,
+  spaceOpen, iterationOpen, subsystemOpen, appOpen, assigneeOpen,
+  onSpaceOpen, onIterationOpen, onSubsystemOpen, onAppOpen, onAssigneeOpen,
+  onSpaceToggle, onIterationToggle, onSubsystemToggle, onAppToggle, onAssigneeToggle,
   onClearAll,
   drilldownFilter,
   onClearDrilldown,
   rightActions,
 }) {
-  const hasFilters = selectedSpaces.length > 0 || selectedIterations.length > 0 || selectedSubsystems.length > 0 || selectedApps.length > 0 || Boolean(drilldownFilter?.dimension);
+  const hasFilters = selectedSpaces.length > 0 || selectedIterations.length > 0 || selectedSubsystems.length > 0 || selectedApps.length > 0 || selectedAssignees.length > 0 || Boolean(drilldownFilter?.dimension);
   const checkboxStyle = (selected, color = C.accent, borderColor = C.accent) => ({
     width:14, height:14, borderRadius:3, flexShrink:0,
     border:`1.5px solid ${selected ? borderColor : C.border}`,
@@ -5498,7 +6149,7 @@ function MultiSelectFilter({
     <div style={{padding:"8px 16px",borderBottom:`1px solid ${C.border}`,background:C.cream,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",flexShrink:0}}>
       {/* Space dropdown */}
       <div style={{position:"relative"}}>
-        <button onClick={(e) => { e.stopPropagation(); onSpaceOpen(!spaceOpen); onSubsystemOpen(false); onAppOpen(false); onIterationOpen(false); }}
+        <button onClick={(e) => { e.stopPropagation(); onSpaceOpen(!spaceOpen); onSubsystemOpen(false); onAppOpen(false); onIterationOpen(false); onAssigneeOpen(false); }}
           style={dropdownBtn('空间', selectedSpaces.length, spaceOpen, C.accent, C.accentLight)}>
           <span>空间</span>
           {selectedSpaces.length > 0 && <span style={{background:C.accent,color:"#fff",borderRadius:10,padding:"0 5px",fontSize:10,fontWeight:700}}>{selectedSpaces.length}</span>}
@@ -5521,7 +6172,7 @@ function MultiSelectFilter({
 
       {/* Subsystem dropdown */}
       <div style={{position:"relative"}}>
-        <button onClick={(e) => { e.stopPropagation(); onSubsystemOpen(!subsystemOpen); onSpaceOpen(false); onAppOpen(false); onIterationOpen(false); }}
+        <button onClick={(e) => { e.stopPropagation(); onSubsystemOpen(!subsystemOpen); onSpaceOpen(false); onAppOpen(false); onIterationOpen(false); onAssigneeOpen(false); }}
           style={dropdownBtn('子系统', selectedSubsystems.length, subsystemOpen, C.purple, C.purpleLight)}>
           <span>子系统</span>
           {selectedSubsystems.length > 0 && <span style={{background:C.purple,color:"#fff",borderRadius:10,padding:"0 5px",fontSize:10,fontWeight:700}}>{selectedSubsystems.length}</span>}
@@ -5544,7 +6195,7 @@ function MultiSelectFilter({
 
       {/* App dropdown */}
       <div style={{position:"relative"}}>
-        <button onClick={(e) => { e.stopPropagation(); onAppOpen(!appOpen); onSpaceOpen(false); onSubsystemOpen(false); onIterationOpen(false); }}
+        <button onClick={(e) => { e.stopPropagation(); onAppOpen(!appOpen); onSpaceOpen(false); onSubsystemOpen(false); onIterationOpen(false); onAssigneeOpen(false); }}
           style={dropdownBtn('应用', selectedApps.length, appOpen, C.warn, C.warnLight)}>
           <span>应用</span>
           {selectedApps.length > 0 && <span style={{background:C.warn,color:"#fff",borderRadius:10,padding:"0 5px",fontSize:10,fontWeight:700}}>{selectedApps.length}</span>}
@@ -5567,7 +6218,7 @@ function MultiSelectFilter({
 
       {/* Iteration dropdown */}
       <div style={{position:"relative"}}>
-        <button onClick={(e) => { e.stopPropagation(); onIterationOpen(!iterationOpen); onSpaceOpen(false); onSubsystemOpen(false); onAppOpen(false); }}
+        <button onClick={(e) => { e.stopPropagation(); onIterationOpen(!iterationOpen); onSpaceOpen(false); onSubsystemOpen(false); onAppOpen(false); onAssigneeOpen(false); }}
           style={dropdownBtn('迭代', selectedIterations.length, iterationOpen, C.teal, C.tealLight)}>
           <span>迭代</span>
           {selectedIterations.length > 0 && <span style={{background:C.teal,color:"#fff",borderRadius:10,padding:"0 5px",fontSize:10,fontWeight:700}}>{selectedIterations.length}</span>}
@@ -5582,6 +6233,29 @@ function MultiSelectFilter({
                   {selectedIterations.includes(iter) && <span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}
                 </span>
                 {iter}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Assignee dropdown */}
+      <div style={{position:"relative"}}>
+        <button onClick={(e) => { e.stopPropagation(); onAssigneeOpen(!assigneeOpen); onSpaceOpen(false); onSubsystemOpen(false); onAppOpen(false); onIterationOpen(false); }}
+          style={dropdownBtn('受理人', selectedAssignees.length, assigneeOpen, C.success, C.successLight)}>
+          <span>受理人</span>
+          {selectedAssignees.length > 0 && <span style={{background:C.success,color:"#fff",borderRadius:10,padding:"0 5px",fontSize:10,fontWeight:700}}>{selectedAssignees.length}</span>}
+          <span style={{fontSize:9,color:C.muted}}>{assigneeOpen?"▲":"▼"}</span>
+        </button>
+        {assigneeOpen && (
+          <div onClick={e => e.stopPropagation()} style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:200,background:C.white,border:`1px solid ${C.border}`,borderRadius:8,boxShadow:"0 4px 20px rgba(0,0,0,0.1)",minWidth:180,padding:4}}>
+            {availableAssignees.map(assignee => (
+              <div key={assignee} onClick={() => onAssigneeToggle(assignee)}
+                style={{padding:"7px 12px",borderRadius:5,cursor:"pointer",background:selectedAssignees.includes(assignee)?C.successLight:"transparent",color:selectedAssignees.includes(assignee)?C.success:C.ink,fontSize:13,display:"flex",alignItems:"center",gap:8}}>
+                <span style={checkboxStyle(selectedAssignees.includes(assignee), C.success, C.success)}>
+                  {selectedAssignees.includes(assignee) && <span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}
+                </span>
+                {assignee}
               </div>
             ))}
           </div>
@@ -5611,6 +6285,12 @@ function MultiSelectFilter({
         <span key={`i-${iter}`} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",background:C.tealLight,color:C.teal,borderRadius:12,fontSize:12,fontWeight:500}}>
           {iter}
           <button onClick={() => onIterationToggle(iter)} style={{background:"none",border:"none",cursor:"pointer",color:C.teal,padding:0,fontSize:14,lineHeight:1,display:"flex",alignItems:"center"}}>×</button>
+        </span>
+      ))}
+      {selectedAssignees.map(assignee => (
+        <span key={`u-${assignee}`} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",background:C.successLight,color:C.success,borderRadius:12,fontSize:12,fontWeight:500}}>
+          {assignee}
+          <button onClick={() => onAssigneeToggle(assignee)} style={{background:"none",border:"none",cursor:"pointer",color:C.success,padding:0,fontSize:14,lineHeight:1,display:"flex",alignItems:"center"}}>×</button>
         </span>
       ))}
       {drilldownFilter?.dimension && (
@@ -5659,6 +6339,7 @@ export default function PMPlatform() {
   const [selectedIterations, setSelectedIterations]       = useState([]);
   const [selectedSubsystems, setSelectedSubsystems]       = useState([]);
   const [selectedApps, setSelectedApps]                   = useState([]);
+  const [selectedAssignees, setSelectedAssignees]         = useState([]);
   const [trendGranularity, setTrendGranularity]           = useState("week");
   const [overviewDimension, setOverviewDimension]         = useState("priority");
   const [drilldownFilter, setDrilldownFilter]             = useState(null);
@@ -5666,6 +6347,7 @@ export default function PMPlatform() {
   const [iterationDropdownOpen, setIterationDropdownOpen] = useState(false);
   const [subsystemDropdownOpen, setSubsystemDropdownOpen] = useState(false);
   const [appDropdownOpen, setAppDropdownOpen]             = useState(false);
+  const [assigneeDropdownOpen, setAssigneeDropdownOpen]   = useState(false);
   const [showSettings, setShowSettings]                   = useState(false);
   const [showNewDropdown, setShowNewDropdown]             = useState(false);
   const [showImportDrawer, setShowImportDrawer]           = useState(false);
@@ -5688,19 +6370,20 @@ export default function PMPlatform() {
     try {
       const saved = localStorage.getItem('kanban-filter-state');
       if (saved) {
-        const { spaces, iterations, subsystems, apps, drilldown } = JSON.parse(saved);
+        const { spaces, iterations, subsystems, apps, assignees, drilldown } = JSON.parse(saved);
         setSelectedSpaces(spaces || []);
         setSelectedIterations(iterations || []);
         setSelectedSubsystems(subsystems || []);
         setSelectedApps(apps || []);
+        setSelectedAssignees(assignees || []);
         if (drilldown?.dimension) setDrilldownFilter(drilldown);
       }
     } catch {}
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('kanban-filter-state', JSON.stringify({ spaces: selectedSpaces, iterations: selectedIterations, subsystems: selectedSubsystems, apps: selectedApps, drilldown: drilldownFilter }));
-  }, [selectedSpaces, selectedIterations, selectedSubsystems, selectedApps, drilldownFilter]);
+    localStorage.setItem('kanban-filter-state', JSON.stringify({ spaces: selectedSpaces, iterations: selectedIterations, subsystems: selectedSubsystems, apps: selectedApps, assignees: selectedAssignees, drilldown: drilldownFilter }));
+  }, [selectedSpaces, selectedIterations, selectedSubsystems, selectedApps, selectedAssignees, drilldownFilter]);
 
   // ── Filter computed values ──
   const availableSpaces = useMemo(() => {
@@ -5721,11 +6404,20 @@ export default function PMPlatform() {
     return [...new Set(selectedSubsystems.flatMap(s => KANBAN_APPS[s] || []))];
   }, [selectedSubsystems]);
 
+  const availableAssignees = useMemo(() => {
+    const names = cards.map(c => c.assignee || c.owner || c.author).filter(Boolean);
+    return [...new Set(names)];
+  }, [cards]);
+
   const filteredCards = useMemo(() => cards.filter(c => {
     if (selectedSpaces.length > 0 && !selectedSpaces.includes(c.space)) return false;
     if (selectedSubsystems.length > 0 && !selectedSubsystems.includes(c.subsystem)) return false;
     if (selectedApps.length > 0 && !selectedApps.includes(c.app)) return false;
     if (selectedIterations.length > 0 && !selectedIterations.includes(c.iteration)) return false;
+    if (selectedAssignees.length > 0) {
+      const assignee = c.assignee || c.owner || c.author;
+      if (!selectedAssignees.includes(assignee)) return false;
+    }
     if (drilldownFilter?.dimension) {
       if (drilldownFilter.dimension === "priority" && c.priority !== drilldownFilter.value) return false;
       if (drilldownFilter.dimension === "author" && c.author !== drilldownFilter.value) return false;
@@ -5740,7 +6432,7 @@ export default function PMPlatform() {
       }
     }
     return true;
-  }), [cards, selectedSpaces, selectedSubsystems, selectedApps, selectedIterations, drilldownFilter]);
+  }), [cards, selectedSpaces, selectedSubsystems, selectedApps, selectedIterations, selectedAssignees, drilldownFilter]);
 
   // ── Filter handlers ──
   const handleSpaceToggle = useCallback((space) => {
@@ -5771,11 +6463,16 @@ export default function PMPlatform() {
     setSelectedIterations(prev => prev.includes(iter) ? prev.filter(i => i !== iter) : [...prev, iter]);
   }, []);
 
+  const handleAssigneeToggle = useCallback((assignee) => {
+    setSelectedAssignees(prev => prev.includes(assignee) ? prev.filter(x => x !== assignee) : [...prev, assignee]);
+  }, []);
+
   const handleClearAllFilters = useCallback(() => {
     setSelectedSpaces([]);
     setSelectedSubsystems([]);
     setSelectedApps([]);
     setSelectedIterations([]);
+    setSelectedAssignees([]);
     setDrilldownFilter(null);
   }, []);
 
@@ -5811,7 +6508,7 @@ export default function PMPlatform() {
     pending:filteredCards.filter(c=>!DONE_COLS.includes(c.col)).length,
     withDocs:filteredCards.filter(c=>Object.values(c.docs||{}).some(Boolean)).length,
   };
-  const hasOverviewBusinessFilters = selectedSpaces.length > 0 || selectedSubsystems.length > 0 || selectedApps.length > 0 || selectedIterations.length > 0;
+  const hasOverviewBusinessFilters = selectedSpaces.length > 0 || selectedSubsystems.length > 0 || selectedApps.length > 0 || selectedIterations.length > 0 || selectedAssignees.length > 0;
 
   const overviewData = useMemo(() => {
     const baseCards = filteredCards;
@@ -6129,29 +6826,34 @@ export default function PMPlatform() {
 
       {/* Stats */}
       {activeTab==="stats"&&(
-        <div style={{flex:1,overflowY:"auto",padding:24,maxWidth:1100,margin:"0 auto",width:"100%"}} onClick={()=>{setSpaceDropdownOpen(false);setIterationDropdownOpen(false);setSubsystemDropdownOpen(false);setAppDropdownOpen(false);}}>
+        <div style={{flex:1,overflowY:"auto",padding:24,maxWidth:1100,margin:"0 auto",width:"100%"}} onClick={()=>{setSpaceDropdownOpen(false);setIterationDropdownOpen(false);setSubsystemDropdownOpen(false);setAppDropdownOpen(false);setAssigneeDropdownOpen(false);}}>
           <h2 style={{fontWeight:700,fontSize:22,color:C.ink,marginBottom:24}}>数据概览</h2>
           <MultiSelectFilter
             availableSpaces={availableSpaces}
             availableIterations={availableIterations}
             availableSubsystems={KANBAN_SUBSYSTEMS}
             availableApps={availableApps}
+            availableAssignees={availableAssignees}
             selectedSpaces={selectedSpaces}
             selectedIterations={selectedIterations}
             selectedSubsystems={selectedSubsystems}
             selectedApps={selectedApps}
+            selectedAssignees={selectedAssignees}
             spaceOpen={spaceDropdownOpen}
             iterationOpen={iterationDropdownOpen}
             subsystemOpen={subsystemDropdownOpen}
             appOpen={appDropdownOpen}
+            assigneeOpen={assigneeDropdownOpen}
             onSpaceOpen={setSpaceDropdownOpen}
             onIterationOpen={setIterationDropdownOpen}
             onSubsystemOpen={setSubsystemDropdownOpen}
             onAppOpen={setAppDropdownOpen}
+            onAssigneeOpen={setAssigneeDropdownOpen}
             onSpaceToggle={handleSpaceToggle}
             onIterationToggle={handleIterationToggle}
             onSubsystemToggle={handleSubsystemToggle}
             onAppToggle={handleAppToggle}
+            onAssigneeToggle={handleAssigneeToggle}
             onClearAll={handleClearAllFilters}
             drilldownFilter={drilldownFilter}
             onClearDrilldown={() => setDrilldownFilter(null)}
@@ -6200,51 +6902,56 @@ export default function PMPlatform() {
 
           <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:12,marginBottom:12}}>
             <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 18px"}}>
-              <div style={{fontWeight:700,fontSize:14,color:C.ink,marginBottom:12}}>趋势（新增 / 通过 / 积压）</div>
-              {overviewData.trends.length === 0 ? (
-                <div style={{fontSize:12,color:C.muted,padding:"18px 0"}}>当前筛选无数据</div>
-              ) : (
-                <>
-                  {(() => {
-                    const width = 640;
-                    const height = 200;
-                    const max = Math.max(1, ...overviewData.trends.map(t => Math.max(t.newCount, t.approved, t.backlog)));
-                    const x = i => (overviewData.trends.length === 1 ? width / 2 : (i / (overviewData.trends.length - 1)) * (width - 20) + 10);
-                    const y = v => height - (v / max) * (height - 24) - 10;
-                    const pathFor = key => overviewData.trends.map((t, i) => `${i===0?"M":"L"}${x(i)},${y(t[key])}`).join(" ");
-                    return (
-                      <svg viewBox={`0 0 ${width} ${height}`} style={{width:"100%",height:200,display:"block",background:C.cream,borderRadius:8,border:`1px solid ${C.border}`}}>
-                        <path d={pathFor("newCount")} fill="none" stroke={C.accent} strokeWidth="2.5" />
-                        <path d={pathFor("approved")} fill="none" stroke={C.success} strokeWidth="2.5" />
-                        <path d={pathFor("backlog")} fill="none" stroke={C.warn} strokeWidth="2.5" strokeDasharray="4 4" />
-                      </svg>
-                    );
-                  })()}
-                  <div style={{display:"flex",gap:12,fontSize:11,color:C.muted,marginTop:8,marginBottom:8}}>
-                    <span style={{color:C.accent}}>● 新增</span>
-                    <span style={{color:C.success}}>● 通过</span>
-                    <span style={{color:C.warn}}>● 积压</span>
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:8}}>
-                    {overviewData.trends.map(t => {
-                      const parts = t.key.split("-");
-                      const month = parts[parts.length - 1];
-                      const weekOrMonth = trendGranularity === "month" ? `${t.key}-01` : `${parts[0]}-${month}-01`;
-                      const start = safeParseDate(weekOrMonth) || new Date();
-                      const end = new Date(start);
-                      end.setDate(end.getDate() + (trendGranularity === "month" ? 30 : 6));
+              {(() => {
+                const isUsingFallbackTrend = overviewData.trends.length < 3;
+                const displayTrends = isUsingFallbackTrend ? FALLBACK_TRENDS : overviewData.trends;
+                return (
+                  <>
+                    <div style={{fontWeight:700,fontSize:14,color:C.ink,marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
+                      趋势（新增 / 通过 / 积压）
+                      {isUsingFallbackTrend && <span style={{fontSize:11,color:C.warn,background:C.warnLight,padding:"2px 7px",borderRadius:10,fontWeight:400}}>示例数据</span>}
+                    </div>
+                    {(() => {
+                      const width = 640;
+                      const height = 200;
+                      const max = Math.max(1, ...displayTrends.map(t => Math.max(t.newCount, t.approved, t.backlog)));
+                      const x = i => (displayTrends.length === 1 ? width / 2 : (i / (displayTrends.length - 1)) * (width - 20) + 10);
+                      const y = v => height - (v / max) * (height - 24) - 10;
+                      const pathFor = key => displayTrends.map((t, i) => `${i===0?"M":"L"}${x(i)},${y(t[key])}`).join(" ");
                       return (
-                        <button key={t.key}
-                          onClick={() => handleOverviewDrilldown("dateRange", { start: start.toISOString(), end: end.toISOString() }, `${t.label}`)}
-                          style={{border:`1px solid ${C.border}`,background:C.white,borderRadius:6,padding:"7px 10px",textAlign:"left",cursor:"pointer",fontSize:11,color:C.ink}}>
-                          <div style={{fontWeight:600,marginBottom:4}}>{t.label}</div>
-                          <div>新增 {t.newCount} · 通过 {t.approved} · 积压 {t.backlog}</div>
-                        </button>
+                        <svg viewBox={`0 0 ${width} ${height}`} style={{width:"100%",height:200,display:"block",background:C.cream,borderRadius:8,border:`1px solid ${C.border}`}}>
+                          <path d={pathFor("newCount")} fill="none" stroke={C.accent} strokeWidth="2.5" />
+                          <path d={pathFor("approved")} fill="none" stroke={C.success} strokeWidth="2.5" />
+                          <path d={pathFor("backlog")} fill="none" stroke={C.warn} strokeWidth="2.5" strokeDasharray="4 4" />
+                        </svg>
                       );
-                    })}
-                  </div>
-                </>
-              )}
+                    })()}
+                    <div style={{display:"flex",gap:12,fontSize:11,color:C.muted,marginTop:8,marginBottom:8}}>
+                      <span style={{color:C.accent}}>● 新增</span>
+                      <span style={{color:C.success}}>● 通过</span>
+                      <span style={{color:C.warn}}>● 积压</span>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:8}}>
+                      {displayTrends.map(t => {
+                        const parts = t.key.split("-");
+                        const month = parts[parts.length - 1];
+                        const weekOrMonth = trendGranularity === "month" ? `${t.key}-01` : `${parts[0]}-${month}-01`;
+                        const start = safeParseDate(weekOrMonth) || new Date();
+                        const end = new Date(start);
+                        end.setDate(end.getDate() + (trendGranularity === "month" ? 30 : 6));
+                        return (
+                          <button key={t.key}
+                            onClick={isUsingFallbackTrend ? undefined : () => handleOverviewDrilldown("dateRange", { start: start.toISOString(), end: end.toISOString() }, `${t.label}`)}
+                            style={{border:`1px solid ${C.border}`,background:C.white,borderRadius:6,padding:"7px 10px",textAlign:"left",cursor:isUsingFallbackTrend?"default":"pointer",fontSize:11,color:C.ink}}>
+                            <div style={{fontWeight:600,marginBottom:4}}>{t.label}</div>
+                            <div>新增 {t.newCount} · 通过 {t.approved} · 积压 {t.backlog}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:10,padding:"16px 18px"}}>
@@ -6309,28 +7016,33 @@ export default function PMPlatform() {
 
       {/* Kanban */}
       {activeTab==="kanban"&&(
-        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={()=>{setSpaceDropdownOpen(false);setIterationDropdownOpen(false);setSubsystemDropdownOpen(false);setAppDropdownOpen(false);}}>
+        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={()=>{setSpaceDropdownOpen(false);setIterationDropdownOpen(false);setSubsystemDropdownOpen(false);setAppDropdownOpen(false);setAssigneeDropdownOpen(false);}}>
           <MultiSelectFilter
             availableSpaces={availableSpaces}
             availableIterations={availableIterations}
             availableSubsystems={KANBAN_SUBSYSTEMS}
             availableApps={availableApps}
+            availableAssignees={availableAssignees}
             selectedSpaces={selectedSpaces}
             selectedIterations={selectedIterations}
             selectedSubsystems={selectedSubsystems}
             selectedApps={selectedApps}
+            selectedAssignees={selectedAssignees}
             spaceOpen={spaceDropdownOpen}
             iterationOpen={iterationDropdownOpen}
             subsystemOpen={subsystemDropdownOpen}
             appOpen={appDropdownOpen}
+            assigneeOpen={assigneeDropdownOpen}
             onSpaceOpen={setSpaceDropdownOpen}
             onIterationOpen={setIterationDropdownOpen}
             onSubsystemOpen={setSubsystemDropdownOpen}
             onAppOpen={setAppDropdownOpen}
+            onAssigneeOpen={setAssigneeDropdownOpen}
             onSpaceToggle={handleSpaceToggle}
             onIterationToggle={handleIterationToggle}
             onSubsystemToggle={handleSubsystemToggle}
             onAppToggle={handleAppToggle}
+            onAssigneeToggle={handleAssigneeToggle}
             onClearAll={handleClearAllFilters}
             drilldownFilter={drilldownFilter}
             onClearDrilldown={() => setDrilldownFilter(null)}
@@ -6366,7 +7078,7 @@ export default function PMPlatform() {
             )}
           />
           <div style={{flex:1,display:"flex",gap:0,overflowX:"auto",padding:"20px 16px",overflowY:"hidden"}} onClick={e=>e.stopPropagation()}>
-            {filteredCards.length === 0 && (selectedSpaces.length > 0 || selectedIterations.length > 0 || selectedSubsystems.length > 0 || selectedApps.length > 0) ? (
+            {filteredCards.length === 0 && (selectedSpaces.length > 0 || selectedIterations.length > 0 || selectedSubsystems.length > 0 || selectedApps.length > 0 || selectedAssignees.length > 0) ? (
               <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:C.muted,gap:12}}>
                 <div style={{fontSize:36}}>🔍</div>
                 <div style={{fontSize:14,fontWeight:600,color:C.ink}}>没有符合筛选条件的需求</div>
@@ -6445,7 +7157,7 @@ export default function PMPlatform() {
         onClose={closeReviewDialog}
         onSubmit={handleReviewDialogSubmit}
       />
-      {showAdd&&<AddCardModal onAdd={card=>{setCards(cs=>[card,...cs]);notify("需求已创建");}} onClose={()=>setShowAdd(false)}/>}
+      {showAdd&&<AddCardDrawer onAdd={card=>{setCards(cs=>[card,...cs]);notify("需求已创建");}} onClose={()=>setShowAdd(false)}/>} 
       {showImportDrawer&&<ImportDrawer visible={showImportDrawer} onClose={()=>setShowImportDrawer(false)}/>}
     </div>
   );

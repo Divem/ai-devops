@@ -20,26 +20,35 @@
 
 ### 设计理念
 
-**PM·AI 产品智能工作台** 是一个基于 React 19 的单页面应用，采用**纯 React 状态管理**（无 Redux/Zustand），所有状态均为组件本地状态。
+**Agentic·DevOps 产研智能工作台** 是一个基于 React 19 的单页面应用，采用**纯 React 状态管理**（无 Redux/Zustand），所有状态均为组件本地状态。
 
 ### 文件结构
 
 ```
-PMPlatform.jsx (2135 行)
-├── 颜色和常量定义 (1-38)
-├── 初始数据和示例 (39-67)
-├── AI API 封装 (69-456)
-├── 辅助组件 (458-718)
-│   ├── KanbanCard - 看板卡片
-│   ├── DetailDrawer - 详情抽屉
-│   └── DesignStudio - 设计工作室
-├── 主组件 PMPlatform (720-2135)
-│   ├── 状态定义
-│   ├── 事件处理
-│   ├── 看板视图
-│   ├── 详情页视图
-│   └── 设置相关
-└── 内联样式定义
+pm-ai-app/src/
+├── PMPlatform.jsx       # 主应用文件（持续迭代，5000+ 行）
+├── main.jsx             # 入口
+└── index.css
+
+ai-client.js             # AI 客户端封装（项目根目录）
+```
+
+主应用模块划分：
+```
+PMPlatform.jsx
+├── 颜色/常量/工具函数
+├── 初始数据 (INITIAL_CARDS)
+├── 辅助组件
+│   ├── KanbanCard         - 看板卡片
+│   ├── DetailDrawer       - 需求详情抽屉（带 AI 评审）
+│   ├── ProposalReviewDrawer - 提案评审抽屉（AI 需求澄清）
+│   ├── DocTreeSidebar     - 左侧文档树导航
+│   ├── DocEditor          - 中间文档编辑/预览区
+│   ├── RightPanel         - 右侧面板（聊天 + 参考资料）
+│   ├── DetailPage         - 需求详情全屏页（三栏布局）
+│   ├── ProjectSettingsPage - 项目配置全屏页（滚动导航）
+│   └── MultiSelectFilter  - 多选筛选器
+└── PMPlatform             - 根组件（路由 + 状态）
 ```
 
 ---
@@ -50,42 +59,43 @@ PMPlatform.jsx (2135 行)
 
 ```javascript
 {
-  id: "REQ-001",                    // 需求ID
-  col: "backlog",                   // 所在看板列
-  priority: "P0",                  // 优先级: P0/P1/P2/P3
-  space: "电商平台",                 // 空间（业务域）
-  iteration: "2025Q1-Sprint1",     // 迭代
-  title: "用户购买流程优化",       // 需求标题
-  desc: "...",                      // 需求描述
-  tags: ["电商","体验优化"],        // 标签
-  author: "张晓薇",                 // 作者
-  date: "2025-03-01",              // 日期
-  userStory: "作为用户...",         // 用户故事
-  acceptanceCriteria: ["..."],     // 验收标准数组
-  aiResult: {                       // AI 评审结果
-    score: 88,                      // 总分
-    completeness: 92,                // 完整性
-    logic: 86,                      // 逻辑性
-    risk: 84,                       // 风险
-    summary: "...",                  // 总结
-    risks: ["..."],                 // 风险列表
-    suggestions: ["..."],           // 建议列表
-    passed: true                     // 是否通过
+  id: "REQ-001",
+  col: "backlog",               // 看板列: backlog | reviewing | ai_review | confirm | approved | rejected
+  priority: "P0",               // P0 | P1 | P2 | P3
+  space: "电商平台",             // 空间（业务域，用于筛选）
+  iteration: "2025Q1-Sprint1",  // 迭代（用于筛选）
+  title: "用户购买流程优化",
+  desc: "需求简要描述",
+  rawRequirement: "业务方提交的完整原始需求说明",  // 用于生成 PRD
+  tags: ["电商", "体验优化"],
+  author: "张晓薇",
+  date: "2025-03-01",
+  userStory: "作为用户...",
+  acceptanceCriteria: ["验收条件1", "验收条件2"],
+  aiResult: {                   // AI 评审结果
+    score: 88,
+    completeness: 92,
+    logic: 86,
+    risk: 84,
+    summary: "总结说明",
+    risks: ["风险1", "风险2"],
+    suggestions: ["建议1", "建议2"],
+    passed: true                // >= 70 为 true
   },
-  docs: {                           // 文档数据
-    prd: null,                      // PRD 文档
-    proposals: [                    // 提案数组（新版）
+  docs: {
+    prd: null,                  // PRD 文档（基于 rawRequirement 生成）
+    proposals: [                // 技术提案数组（可多个）
       {
-        id: "auth-system",           // 提案ID
-        name: "认证系统改造",        // 提案名称
-        proposal: "...",             // Proposal 文档
-        design: "...",               // Design 文档
-        spec: "...",                 // Spec 文档
-        tasks: "..."                // Tasks 文档
+        id: "auth-system",
+        name: "认证系统改造",
+        proposal: "...",         // 技术提案
+        design: "...",           // 技术设计
+        spec: "...",             // Delta Spec
+        tasks: "..."             // 开发任务
       }
     ]
   },
-  chatHistory: [                   // 聊天历史
+  chatHistory: [               // 聊天历史
     { role: "user", content: "..." },
     { role: "assistant", content: "..." }
   ]
@@ -105,16 +115,31 @@ PMPlatform.jsx (2135 行)
 ]
 ```
 
-### 3. 文档类型 (DOC_TYPES)
+### 3. 项目配置 (DEFAULT_PROJECT_CONFIG)
 
 ```javascript
-[
-  { key: "prd",      label: "产品需求 SPEC",  icon: "📋", color: "#7c6af7", group: "product" },
-  { key: "spec",     label: "需求规格说明",    icon: "📝", color: "#8b5cf6", group: "product" },
-  { key: "proposal", label: "Proposal",       icon: "💡", color: "#f59e0b", group: "dev" },
-  { key: "design",   label: "Design",         icon: "🏗",  color: "#3b82f6", group: "dev" },
-  { key: "tasks",    label: "Tasks",          icon: "✅", color: "#10b981", group: "dev" },
-]
+{
+  project: { name: '', meego: '', description: '' },
+  ai: {
+    model: 'claude',           // 选中的 AI 模型
+    anthropicKey: '',          // Claude API Key
+    anthropicBaseUrl: '',      // Claude Base URL（空则用代理）
+    anthropicModel: '',        // Claude 模型名（空则用默认）
+    glmKey: '',                // GLM API Key
+    glmBaseUrl: '',            // GLM Base URL
+    glmModel: '',              // GLM 模型名
+    arkKey: '',                // Ark API Key
+    arkBaseUrl: '',            // Ark Base URL
+    arkModel: '',              // Ark 模型名
+    customName: '',            // 自定义模型显示名
+    customBaseUrl: '',         // 自定义端点（OpenAI 兼容）
+    customModel: '',           // 自定义模型 ID
+    customKey: '',             // 自定义 API Key
+    customAuthStyle: 'Bearer', // 认证方式: Bearer | x-api-key
+  },
+  git: { platform: 'github', token: '', owner: '', repo: '', branch: 'main' },
+  skills: []
+}
 ```
 
 ---
@@ -123,258 +148,156 @@ PMPlatform.jsx (2135 行)
 
 ### 1. 看板视图 (Kanban View)
 
-**位置**: PMPlatform 主组件，activeTab === "kanban"
-
-**功能**:
-- 6 列需求流转看板
-- 需求卡片拖拽（原生 HTML5 Drag & Drop API）
-- 多选筛选（空间 + 迭代）
-- 点击卡片显示详情抽屉
-- 悬浮显示"详情"按钮
-
-**关键代码**:
-```javascript
-// 拖拽开始
-const handleDragStart = (e, card) => {
-  setDragCard(card);
-  e.dataTransfer.effectAllowed = "move";
-};
-
-// 拖拽放下
-const handleDrop = (e, colId) => {
-  e.preventDefault();
-  if (dragCard && dragCard.col !== colId) {
-    handleMoveCard(dragCard.id, colId);
-  }
-  setDragCard(null);
-};
-```
-
-**筛选器组件**: `MultiSelectFilter` (1684-1760 行)
-
----
+6 列需求流转看板，支持：
+- 卡片拖拽（HTML5 Drag & Drop API）
+- 多维度多选筛选（空间 + 迭代）
+- 点击卡片打开详情抽屉
+- 需求优先级徽章（P0–P3 颜色区分）
 
 ### 2. 详情抽屉 (DetailDrawer)
 
-**位置**: 617-718 行
-
-**功能**:
-- 展示需求完整信息（描述、用户故事、验收标准）
-- AI 评审报告可视化
-  - 圆环进度图 (ScoreRing)
-  - 三维度评分条 (MiniBar)
-  - 风险和建议列表
+展示需求完整信息 + AI 评审报告（ScoreRing 圆环图 + MiniBar 维度条），提供：
 - AI 智能评审按钮
-- AI 设计按钮
-- 通过/拒绝操作
+- AI 设计按钮（进入详情全屏页）
+- 通过 / 拒绝操作
 
-**AI 评审按钮点击**:
-```javascript
-const handleAIReview = async (card) => {
-  setReviewing(true);
-  const result = await callAIReview(card);
-  updateCard(card.id, { aiResult: result });
-  setReviewing(false);
-};
+### 3. 提案评审抽屉 (ProposalReviewDrawer)
+
+AI 需求澄清模块，包含：
+- **原始需求**标签页：查看完整需求原文
+- **AI 评审**标签页：显示 AI 分析摘要（loading 中仍可操作）
+- **提交并生成提案**按钮：`disabled={generating}`（仅生成中禁用，非 AI 评审加载中）
+
+### 4. 详情全屏页 (DetailPage)
+
+三栏布局的需求详情页：
+
+```
+┌──────────────┬──────────────────────┬─────────────────┐
+│ 文档树侧边栏  │    文档编辑/预览区    │  右侧面板        │
+│ DocTreeSidebar│    DocEditor        │  ChatbotPanel   │
+│              │                      │  ReferencePanel  │
+└──────────────┴──────────────────────┴─────────────────┘
 ```
 
----
-
-### 3. 设计工作室 (DesignStudio)
-
-**位置**: 720-1574 行
-
-**功能**:
-- 全屏文档编辑器
-- 左侧文档树（需求层级 + 文档类型）
-- 中间文档编辑/预览
-- 右侧 AI 对话面板
-
-**文档树组件**: `DocTreeSidebar` (约 800-1000 行)
-```javascript
-// 结构示例
+文档树层级：
+```
 REQ-001
-├── 📋 产品需求 SPEC
-└── 📝 提案文档树
-    ├── 认证系统改造
+├── 📋 产品需求 SPEC (PRD)
+└── 提案文件夹/
+    ├── 认证系统改造/
     │   ├── 💡 Proposal
     │   ├── 🏗 Design
-    │   ├── 📝 Spec
+    │   ├── 📝 Delta Spec
     │   └── ✅ Tasks
-    └── Token 刷新机制
+    └── Token 刷新机制/
         └── ✅ Tasks
 ```
 
-**文档编辑器**: `DocEditor` (约 1000-1500 行)
-- Markdown 渲染
-- 在线编辑模式
-- AI 生成文档按钮
+### 5. 项目配置页 (ProjectSettingsPage)
 
-**AI 生成流程**:
-```javascript
-const handleGenerate = async () => {
-  setGenerating(`${selCard.id}:${selDocType}`);
-  const content = await callAIDoc(selCard, selDocType);
-  const newDocs = { ...selCard.docs, [selDocType]: content };
-  onUpdateDocs(selCard.id, newDocs);
-  setGenerating(null);
-};
-```
+滚动式全屏配置页，左侧固定导航，右侧内容区可滚动：
 
----
+**左侧导航索引**（IntersectionObserver 驱动高亮）：
+- AI 模型配置
+- Git 仓库配置
+- SDD 框架规范
+- AI 技能管理
 
-### 4. 详情页 (DetailPage)
+**AI 模型配置区块**：
+- 下拉选择模型：Claude / GLM-4 / Ark / 自定义
+- 各模型独立展示：API Key（密码显示/隐藏切换）+ Base URL + Model Name
+- **保存 AI 配置** + **测试请求** 两个操作按钮
+- 测试请求使用**表单当前值**（未保存状态）直接发起最小请求（max_tokens: 5）
+- 测试结果用颜色条展示：蓝色（测试中）/ 绿色（成功）/ 红色（失败）
 
-**位置**: 约 1800-1900 行
+**Git 仓库配置区块**：
+- 平台选择（GitHub / GitLab）+ Token + Owner + Repo + Branch
+- **测试连接**按钮（调用 GitHub/GitLab API 验证）
 
-**功能**:
-- 专用的需求详情页（与 DesignStudio 类似布局）
-- 文档预览和编辑
-- 右侧 AI 面板
+### 6. 数据概览页 (Stats View)
 
----
-
-### 5. 设置下拉菜单 (SettingsDropdown)
-
-**位置**: 1577-1682 行
-
-**功能**:
-- API Key 配置入口
-- 登出功能（清除 localStorage）
-
----
-
-### 6. API Key 配置弹窗 (ApiKeyModal)
-
-**位置**: 约 1630-1682 行
-
-**功能**:
-- 配置 Claude API Key
-- 配置 GLM-4 API Key
-- 密码输入框样式
-- Key 保存在 localStorage
-
----
-
-### 7. 数据概览页 (Stats View)
-
-**位置**: 2035-2063 行
-
-**功能**:
-- 4 个核心指标卡片
-  - 需求总数
-  - 待处理
-  - 已通过
-  - 含文档
-- 各阶段分布条形图
+4 个核心指标卡片 + 各阶段分布条形图。
 
 ---
 
 ## AI 集成
 
-### 1. AI 客户端封装
+### 架构：ai-client.js
 
-**位置**: 74-89 行
-
-```javascript
-// 获取当前选择的模型
-function getSelectedModel() {
-  return localStorage.getItem('ai_model_selected') || 'claude';
-}
-
-// 统一的 AI 调用接口
-async function callAI(prompt, maxTokens = 1800) {
-  const model = getSelectedModel();
-  const client = new AIClient(model);
-  return await client.chat(prompt, maxTokens);
-}
-```
-
-**模型选择器** (顶部导航栏，1991-2007 行):
-```javascript
-<select
-  value={selectedModel}
-  onChange={(e) => {
-    const model = e.target.value;
-    setSelectedModel(model);
-    localStorage.setItem('ai_model_selected', model);
-    notify(`已切换到 ${model === 'claude' ? 'Claude' : 'GLM-4'}`);
-    setTimeout(() => window.location.reload(), 500);
-  }}
->
-  <option value="claude">Claude (Anthropic)</option>
-  <option value="glm">GLM-4 (Zhipu)</option>
-</select>
-```
-
-### 2. AI 需求评审
-
-**位置**: 84-89 行
+独立文件 `ai-client.js` 封装多模型 AI 调用：
 
 ```javascript
-async function callAIReview(card) {
-  const text = await callAI(
-    `你是资深产品经理评审专家。请对以下需求评审，从完整性、逻辑性、风险三个维度打分（0-100）。
-    需求ID: ${card.id} | 标题: ${card.title} | 描述: ${card.desc}
-    | 用户故事: ${card.userStory} | 验收标准: ${card.acceptanceCriteria.join("；")}
-    严格按JSON返回：{
-      "score":<0-100>,
-      "completeness":<0-100>,
-      "logic":<0-100>,
-      "risk":<0-100>,
-      "summary":"<2-3句>",
-      "risks":["<r1>","<r2>","<r3>"],
-      "suggestions":["<s1>","<s2>","<s3>"],
-      "passed":<bool,>=70为true>
-    }`
-  );
-  return JSON.parse(text.replace(/```json|```/g,"").trim());
+class AIClient {
+  constructor(modelId) {
+    this.provider = this._createProvider(modelId);
+  }
+  _createProvider(modelId) {
+    switch (modelId) {
+      case 'claude': return new ClaudeProvider();
+      case 'glm':    return new GLMProvider();
+      case 'ark':    return new ArkProvider();
+      case 'custom': return new CustomProvider();
+      default:       return new ClaudeProvider();
+    }
+  }
+  async chat(prompt, maxTokens) { ... }
 }
 ```
 
-### 3. AI 文档生成
-
-**位置**: 91-456 行
+每个 Provider 在构造时从 `localStorage` 读取 key/baseUrl/model，支持运行时覆盖默认值：
 
 ```javascript
-const DOC_PROMPTS = {
-  prd: (card) => `...PRD 生成模板...`,
-  spec: (card) => `...Spec 生成模板...`,
-  proposal: (card) => `...Proposal 生成模板...`,
-  design: (card) => `...Design 生成模板...`,
-  tasks: (card) => `...Tasks 生成模板...`,
-};
-
-async function callAIDoc(card, docType) {
-  const prompt = DOC_PROMPTS[docType](card);
-  return await callAI(prompt, 2000);
+class ClaudeProvider {
+  constructor() {
+    this.apiKey      = localStorage.getItem('ai_model_anthropic_key') || '';
+    this.apiEndpoint = localStorage.getItem('ai_model_claude_baseurl') || '/api/anthropic/v1/messages';
+    this.model       = localStorage.getItem('ai_model_claude_modelname') || 'claude-sonnet-4-20250514';
+  }
 }
 ```
 
-### 4. AI 对话助手
+**支持的模型**：
 
-**位置**: 1903-1922 行
+| 模型 | Provider | API 格式 | 默认端点 |
+|------|----------|----------|----------|
+| claude | ClaudeProvider | Anthropic Messages | `/api/anthropic/v1/messages`（代理） |
+| glm | GLMProvider | OpenAI 兼容 | `https://open.bigmodel.cn/api/paas/v4/...` |
+| ark | ArkProvider | OpenAI 兼容 | `https://ark.cn-beijing.volces.com/api/coding/v3/...` |
+| custom | CustomProvider | OpenAI 兼容 | 用户配置 |
+
+### AI 功能入口
+
+| 功能 | 函数 | 模型 |
+|------|------|------|
+| 需求评审 | `callAIReview(card)` | 当前选中模型 |
+| 文档生成 | `callAIDoc(card, docType)` | 当前选中模型 |
+| 需求澄清聊天 | `handleSendMessage()` | 当前选中模型 |
+| 配置测试 | `handleTestAI()` | 直接 fetch，使用表单值 |
+
+### AI 测试请求 (handleTestAI)
+
+不经过 AIClient，直接用表单 state 值构造请求，确保测试的是"当前填写的配置"而非 localStorage 旧值：
 
 ```javascript
-const handleSendMessage = async (message, tab) => {
-  const card = cards.find(c => c.id === detailCardId);
-  const historyKey = tab === "chatbot" ? "chatHistory" : "refChatHistory";
-  const chatHistory = card[historyKey] || [];
-  const newMessage = { role: "user", content: message };
-  const updatedHistory = [...chatHistory, newMessage];
-
-  const response = await callAI(
-    `你是产品需求分析专家。针对以下需求回答用户的问题。
-    需求标题: ${card.title}
-    需求描述: ${card.desc}
-    用户故事: ${card.userStory}
-    验收标准: ${card.acceptanceCriteria.join("；")}
-    用户问题: ${message}
-    请以专业、友好的语气回复。`,
-    1500
-  );
-
-  updateCard(card.id, { [historyKey]: [...updatedHistory, { role: "assistant", content: response }] });
+const handleTestAI = async () => {
+  setAiTestStatus('testing');
+  try {
+    if (aiModel === 'claude') {
+      // POST anthropicBaseUrl || '/api/anthropic/v1/messages'
+      // headers: x-api-key + anthropic-version: 2023-06-01
+      // body: Anthropic Messages 格式, max_tokens: 5
+    } else {
+      // POST baseUrl/chat/completions
+      // headers: Authorization: Bearer key
+      // body: OpenAI Chat Completions 格式, max_tokens: 5
+    }
+    setAiTestStatus('success');
+    setAiTestMsg('测试成功: ...');
+  } catch (e) {
+    setAiTestStatus('error');
+    setAiTestMsg(`网络错误: ${e.message}`);
+  }
 };
 ```
 
@@ -382,67 +305,54 @@ const handleSendMessage = async (message, tab) => {
 
 ## 状态管理
 
-### 主状态定义 (PMPlatform 组件)
+### PMPlatform 根组件主状态
 
 ```javascript
-const [cards, setCards] = useState(INITIAL_CARDS);           // 需求列表
-const [activeTab, setActiveTab] = useState("kanban");       // 当前标签页
-const [selected, setSelected] = useState(null);              // 选中的卡片（详情抽屉）
-const [detailCardId, setDetailId] = useState(null);         // 详情页卡片ID
-const [studioCardId, setStudioId] = useState(null);         // 设计工作室卡片ID
-const [reviewing, setReviewing] = useState(false);          // AI 评审中
-const [dragCard, setDragCard] = useState(null);            // 拖拽中的卡片
-const [toast, setToast] = useState(null);                  // 提示消息
-const [showAdd, setShowAdd] = useState(false);             // 显示新建弹窗
-const [selectedModel, setSelectedModel] = useState(
-  localStorage.getItem('ai_model_selected') || 'claude'    // AI 模型选择
-);
+const [cards, setCards]           = useState(INITIAL_CARDS);
+const [activeTab, setActiveTab]   = useState("kanban");     // kanban | stats
+const [selected, setSelected]     = useState(null);          // 详情抽屉的卡片
+const [detailCardId, setDetailId] = useState(null);         // 详情全屏页卡片ID
+const [reviewing, setReviewing]   = useState(false);        // AI 评审中
+const [dragCard, setDragCard]     = useState(null);         // 拖拽中的卡片
+const [toast, setToast]           = useState(null);
+const [showAdd, setShowAdd]       = useState(false);
+const [projectConfig, setProjectConfig] = useState(loadProjectConfig());
+const [selectedSpaces, setSelectedSpaces]         = useState([]);
+const [selectedIterations, setSelectedIterations] = useState([]);
+```
 
-// 筛选相关
-const [selectedSpaces, setSelectedSpaces] = useState([]);   // 选中的空间
-const [selectedIterations, setSelectedIterations] = useState([]); // 选中的迭代
-const [spaceDropdownOpen, setSpaceDropdownOpen] = useState(false);
-const [iterationDropdownOpen, setIterationDropdownOpen] = useState(false);
+### ProjectSettingsPage 局部状态（AI 模型配置部分）
 
-// 设置相关
-const [showSettings, setShowSettings] = useState(false);
-const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+```javascript
+// 模型选择
+const [aiModel, setAiModel] = useState(projectConfig.ai.model || 'claude');
+
+// 各模型配置
+const [anthropicKey, setAnthropicKey]         = useState(projectConfig.ai.anthropicKey || '');
+const [anthropicBaseUrl, setAnthropicBaseUrl] = useState(projectConfig.ai.anthropicBaseUrl || '');
+const [anthropicModel, setAnthropicModel]     = useState(projectConfig.ai.anthropicModel || '');
+// ... glm / ark / custom 类似
+
+// Key 显示/隐藏
+const [showAnthropicKey, setShowAnthropicKey] = useState(false);
+// ... 各模型各一个 showXxxKey
+
+// 测试请求状态
+const [aiTestStatus, setAiTestStatus] = useState(null);  // null | 'testing' | 'success' | 'error'
+const [aiTestMsg, setAiTestMsg]       = useState('');
 ```
 
 ### 状态更新工具函数
 
 ```javascript
-// 更新需求
 const updateCard = useCallback((id, updates) => {
   setCards(cs => cs.map(c => c.id === id ? { ...c, ...updates } : c));
 }, []);
 
-// 更新文档
-const handleUpdateDocs = useCallback((cardId, newDocs) => {
-  updateCard(cardId, { docs: newDocs });
-}, [updateCard]);
-
-// 移动需求到指定列
 const handleMoveCard = (id, col) => {
   updateCard(id, { col });
   notify(`已移至 · ${COLUMNS.find(c => c.id === col)?.label}`);
 };
-```
-
-### 统计数据计算
-
-```javascript
-const stats = useMemo(() => {
-  const total = cards.length;
-  const pending = cards.filter(c =>
-    ["backlog","reviewing","ai_review","confirm"].includes(c.col)
-  ).length;
-  const approved = cards.filter(c => c.col === "approved").length;
-  const withDocs = cards.filter(c =>
-    Object.values(c.docs || {}).filter(Boolean).length > 0
-  ).length;
-  return { total, pending, approved, withDocs };
-}, [cards]);
 ```
 
 ---
@@ -450,121 +360,96 @@ const stats = useMemo(() => {
 ## 组件层级
 
 ```
-PMPlatform (主组件)
-├── 导航栏
-│   ├── Logo + 标题
-│   ├── 标签页切换 (需求评审看板 / 数据概览)
-│   ├── AI 模型选择器
-│   ├── 统计数据
-│   ├── 设置下拉菜单
-│   └── 新建需求按钮
+PMPlatform
+├── 顶部导航栏（模型选择 / 统计 / 设置入口）
 ├── 看板视图 (activeTab === "kanban")
-│   ├── MultiSelectFilter (筛选器)
-│   ├── COLUMNS (6列)
-│   │   └── KanbanCard[] (需求卡片)
-│   └── DetailDrawer (详情抽屉)
+│   ├── MultiSelectFilter（空间 + 迭代多选）
+│   ├── 6 × 看板列
+│   │   └── KanbanCard[]
+│   └── DetailDrawer（右侧抽屉）
+│       └── ProposalReviewDrawer（提案评审抽屉）
 ├── 数据概览 (activeTab === "stats")
-│   ├── 统计卡片
+│   ├── 4 个统计指标卡片
 │   └── 阶段分布条形图
-├── DetailPage (详情页全屏)
-│   ├── DocTreeSidebar (文档树)
-│   ├── DocEditor (文档编辑器)
-│   └── RightPanel (AI 面板)
-├── DesignStudio (设计工作室全屏)
-│   ├── DocTreeSidebar (文档树)
-│   ├── DocEditor (文档编辑器)
-│   └── RightPanel (AI 面板)
+├── DetailPage（详情全屏，detailCardId 非 null 时）
+│   ├── DocTreeSidebar
+│   ├── DocEditor
+│   └── RightPanel
+│       ├── ChatbotPanel
+│       └── ReferencePanel
+├── ProjectSettingsPage（设置全屏）
+│   ├── 左侧固定导航（scroll-spy 高亮）
+│   └── 右侧滚动内容区
+│       ├── AI 模型配置区块（ref=aiRef）
+│       ├── Git 仓库配置区块（ref=gitRef）
+│       ├── SDD 框架规范区块（ref=sddRef）
+│       └── AI 技能管理区块（ref=skillsRef）
 └── 弹窗
-    ├── AddCardModal (新建需求)
-    └── ApiKeyModal (API Key 配置)
+    └── AddCardModal（新建需求）
 ```
 
 ---
 
 ## 关键流程
 
-### 1. 新建需求流程
+### 1. AI 评审流程
 
 ```
-点击 "新建需求" 按钮
+点击需求卡片 → 打开 DetailDrawer
   ↓
-打开 AddCardModal 弹窗
+点击"AI 智能评审" → callAIReview(card)
   ↓
-填写需求信息（标题、描述、优先级等）
+AI 返回 JSON 评审结果
   ↓
-点击保存
-  ↓
-setCards(cs => [newCard, ...cs])
-  ↓
-显示提示 "需求已创建"
+updateCard(id, { aiResult }) → 渲染评分环图 + 维度条
 ```
 
-### 2. AI 评审流程
+### 2. 生成文档流程
 
 ```
-点击需求卡片 → 打开详情抽屉
+从 DetailDrawer 点击"AI 设计" → 打开 DetailPage
   ↓
-点击 "AI 智能评审" 按钮
+在 DocTreeSidebar 选择文档节点
   ↓
-setReviewing(true)
+DocEditor 中点击"AI 生成"
   ↓
-调用 callAIReview(card)
+callAIDoc(card, docType) → 生成 Markdown
   ↓
-解析 AI 返回的 JSON
-  ↓
-updateCard(card.id, { aiResult: result })
-  ↓
-显示 AI 评审报告（评分、风险、建议）
+updateCard(id, { docs: { ...docs, [type]: content } })
 ```
 
-### 3. AI 生成文档流程
+### 3. 提案评审 & 生成流程
 
 ```
-点击 "AI 设计" 按钮
+详情抽屉 → "AI 需求澄清" → ProposalReviewDrawer
   ↓
-打开 DesignStudio 全屏页
+自动触发 AI 评审（后台加载，不阻塞操作）
   ↓
-在文档树中选择文档类型
+用户可直接点击"提交并生成提案"（disabled 仅在生成中）
   ↓
-点击 "AI 生成" 按钮
-  ↓
-callAIDoc(card, docType)
-  ↓
-生成 Markdown 内容
-  ↓
-更新到 card.docs[docType]
-  ↓
-右侧渲染预览
+进入详情页，自动生成 proposal + design + spec + tasks
 ```
 
-### 4. 需求流转流程
+### 4. 需求流转（拖拽）
 
 ```
-拖拽需求卡片到目标列
+拖拽卡片到目标列 → onDrop
   ↓
-onDrop 事件触发
+handleMoveCard(card.id, targetColId)
   ↓
-调用 handleMoveCard(card.id, targetCol)
-  ↓
-updateCard(card.id, { col: targetCol })
-  ↓
-重新渲染看板
+updateCard → 看板重新渲染 + Toast 提示
 ```
 
-### 5. 筛选流程
+### 5. AI 配置测试
 
 ```
-点击 "空间" / "迭代" 下拉按钮
+ProjectSettingsPage 中修改 API Key（未保存）
   ↓
-显示复选框列表
+点击"测试请求"
   ↓
-勾选多个选项
+handleTestAI() 用表单 state 直接 fetch（不读 localStorage）
   ↓
-selectedSpaces / selectedIterations 更新
-  ↓
-filteredCards 自动过滤
-  ↓
-看板重新渲染
+显示结果条：测试中（蓝）/ 成功（绿）/ 失败（红）
 ```
 
 ---
@@ -572,105 +457,42 @@ filteredCards 自动过滤
 ## 设计特点
 
 ### 1. 内联样式
+所有样式通过 JS 对象内联，颜色统一走 `C` 对象（Color Tokens）。
 
-项目使用内联对象样式（无 CSS 模块或 Styled Components）:
-```javascript
-const styles = {
-  container: { padding: '16px', background: '#f5f3ee' },
-  button: { background: '#1a6cf6', color: '#fff' }
-};
-```
+### 2. scroll-spy 导航
+ProjectSettingsPage 使用 `IntersectionObserver`（rootMargin: `-40% 0px -55% 0px`）在滚动时自动高亮左侧导航项。
 
-### 2. 组件化设计
+### 3. AI 测试与保存解耦
+测试请求直接使用表单 state，不依赖 localStorage；保存操作才写入 localStorage，两者完全解耦。
 
-- 独立的子组件（KanbanCard, DetailDrawer, DesignStudio 等）
-- Props 传递数据
-- 回调函数处理事件
-
-### 3. 无外部状态管理
-
-- 纯 React useState/useCallback/useMemo
-- 状态提升至主组件
-- 简单直接，易于理解
-
-### 4. AI 能力集成
-
-- 统一的 AIClient 抽象
-- 支持多模型切换（Claude / GLM-4）
-- Prompt 模板化
-- 错误处理和重试
-
-### 5. 响应式布局
-
-- Flexbox 布局
-- 相对单位
-- 悬浮和过渡动画
+### 4. 多模型扩展
+在 `ai-client.js` 中添加新 Provider 类并在 `_createProvider` switch 中注册，即可接入新模型。
 
 ---
 
 ## 扩展点
 
-### 1. 新增 AI 模型
+### 新增 AI 模型
 
-在 `ai-client.js` 中添加新的 Provider 类:
 ```javascript
+// ai-client.js
 class NewModelProvider {
   constructor() {
-    this.apiKey = this._getApiKey();
+    this.apiKey = localStorage.getItem('ai_model_new_key') || '';
     this.apiEndpoint = '...';
     this.model = 'model-name';
   }
-  // 实现 chat 方法
+  async chat(prompt, maxTokens) { /* OpenAI 格式 fetch */ }
 }
+
+// _createProvider 中
+case 'new': return new NewModelProvider();
 ```
 
-### 2. 新增文档类型
+### 新增文档类型
 
-在 `DOC_TYPES` 中添加:
-```javascript
-{ key: "new-type", label: "新文档类型", icon: "📌", color: "#xxx", group: "dev" }
-```
-
-在 `DOC_PROMPTS` 中添加生成模板。
-
-### 3. 新增看板列
-
-在 `COLUMNS` 中添加:
-```javascript
-{ id: "new-col", label: "新列名", color: C.xxx, bg: "#xxx" }
-```
+在 `DOC_TYPES` 数组和 `DOC_PROMPTS` 对象中各添加一项即可。
 
 ---
 
-## 总结
-
-**PMPlatform.jsx** 是一个功能完整的 React 单页应用，核心特点：
-
-1. ✅ **完整的 AI 需求管理工作流**
-   - 需求创建
-   - AI 评审
-   - 文档生成
-   - 状态流转
-
-2. ✅ **多模型 AI 支持**
-   - Claude (Anthropic)
-   - GLM-4 (Zhipu)
-
-3. ✅ **直观的看板界面**
-   - 拖拽操作
-   - 多选筛选
-   - 实时统计
-
-4. ✅ **专业文档编辑**
-   - Markdown 渲染
-   - 在线编辑
-   - AI 辅助生成
-
-5. ✅ **简洁的技术栈**
-   - React 19
-   - 无外部状态管理
-   - 内联样式
-
----
-
-*文档生成时间: 2026-03-07*
+*最后更新: 2026-03-08*
