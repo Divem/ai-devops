@@ -1,153 +1,102 @@
 # PM AI Platform - 产品智能工作台
 
-> AI 驱动的产品需求管理平台，集成智能评审、文档生成与 OpenSpec 工作流
+> AI 驱动的需求评审、文档生成与 OpenSpec 变更协作平台。
 
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
-![Anthropic](https://img.shields.io/badge/Claude-API-D99A5C?logo=anthropic)
-![License](https://img.shields.io/badge/license-MIT-green)
+## 项目概览
 
-## ✨ 功能特性
+PM AI Platform 将需求管理从“收集 -> 评审 -> 设计 -> 文档 -> Git 提交 -> 回顾”放到同一工作台中，核心定位是：
 
-### 📋 需求看板
-- 六阶段工作流：待评审 → 评审中 → AI分析中 → 人工确认 → 已通过 → 已拒绝
-- 拖拽式卡片管理
-- AI 评审分数与建议展示
-- 按负责人、优先级、状态筛选排序
+- 用看板管理需求状态
+- 用 AI 提升需求质量与文档产出效率
+- 用 OpenSpec 管理变更与实施过程
+- 用数据概览支持复盘与决策
 
-### 🤖 AI 智能评审
-- 需求清晰度、完整性、可实现性评分（0-100）
-- 风险识别与改进建议
-- 基于用户故事与验收标准的智能分析
+## 主要能力
 
-### 📝 文档生成
-- **PRD** - 产品需求文档
-- **Spec** - 需求规格说明
-- **Proposal** - 提案文档
-- **Design** - 设计文档
-- **Tasks** - 任务清单
+- 需求看板：多阶段流转（含 `已提交（git commit）`）+ 拖拽 + 多维筛选
+- 详情抽屉：评审报告 / 原始需求双 Tab，原始需求支持基础信息、Meego 链接、编辑与同步
+- AI 能力：需求评审、文档生成、聊天澄清、失败回退演示
+- 文档中心：PRD + 多提案（Proposal/Design/Spec/Tasks）树状管理
+- Git 集成：文档提交到 GitHub/GitLab，提交状态持久化与展示
+- OpenSpec：propose/apply/archive 全流程变更管理
 
-### 🎯 需求详情页
-三栏布局：
-- **左侧**：文档树（按需求分组的文档库）
-- **中间**：Markdown 文档编辑/预览
-- **右侧**：CHATBOT / 参考资料（双 TAB 切换）
-
-### 📚 历史需求参考
-- 基于标签匹配的相似需求推荐
-- 优先级权重计算
-- Top 5 相关需求展示
-
-## 🚀 快速开始
-
-### 方式一：直接预览（推荐）
-
-1. **启动本地服务器**
-   ```bash
-   python3 -m http.server 8000
-   ```
-
-2. **在浏览器中打开**
-   - **SDD2 版本**（最新）：http://localhost:8000/preview-sdd2.html
-   - SDD 版本：http://localhost:8000/index.html
-   - 简单测试：http://localhost:8000/test-simple.html
-
-### 方式二：Vite 应用
+## 快速启动
 
 ```bash
-# 进入应用目录
 cd pm-ai-app
-
-# 安装依赖
 npm install
-
-# 启动开发服务器
 npm run dev
 ```
 
-### 方式三：导入到 React 项目
+- 默认访问：`http://localhost:5173`
+- 生产构建：`npm run build`
 
-```jsx
-import PMPlatform from './pm-ai-platform_sdd2.jsx';
+## 仓库结构
 
-function App() {
-  return <PMPlatform />;
-}
-```
-
-## 🎨 设计系统
-
-### 颜色规范
-
-```javascript
-const C = {
-  ink: "#0d0e12", paper: "#f5f3ee", cream: "#faf8f3", white: "#ffffff",
-  muted: "#9b9b8a", border: "#e2ddd5",
-  accent: "#1a6cf6", accentLight: "#e8f0fe",
-  success: "#0d7a4e", successLight: "#e6f4ef",
-  warn: "#b45309", warnLight: "#fef3c7",
-  danger: "#c0392b", dangerLight: "#fdecea",
-};
-```
-
-### 优先级颜色
-
-| 优先级 | 颜色 |
-|--------|------|
-| P0 | 🔴 #c0392b |
-| P1 | 🟠 #e67e22 |
-| P2 | 🔵 #1a6cf6 |
-| P3 | ⚪ #9b9b8a |
-
-## 📁 项目结构
-
-```
+```text
 agentic_coding_platform/
-├── pm-ai-platform_sdd.jsx      # SDD 设计系统主应用
-├── pm-ai-platform_sdd2.jsx     # SDD2 版本（含 CHATBOT/参考资料）
-├── pm-ai-platform_vibe.jsx     # Vibe 设计系统变体
-├── preview-sdd2.html            # SDD2 预览入口
-├── index.html                   # SDD 预览入口
-├── pm-ai-app/                   # Vite React 应用
-│   ├── src/
-│   │   ├── PMPlatform.jsx
-│   │   └── main.jsx
-│   └── package.json
-├── preview-apps/                # 多版本预览应用
-│   ├── sdd2-app/
-│   └── vibe-app/
-├── openspec/                    # OpenSpec 规范文档
-│   └── changes/
-└── md/                          # 产品文档
-    └── PM_AI_Plagform_PRD.md
+├── pm-ai-app/                        # 主应用（Vite + React）
+│   └── src/PMPlatform.jsx            # 核心单文件页面逻辑
+├── preview-apps/                     # 设计变体预览
+│   ├── vibe-app/
+│   └── sdd2-app/
+├── openspec/                         # OpenSpec 规范与变更
+│   ├── specs/                        # 主 specs
+│   └── changes/                      # active + archive changes
+├── md/                               # 用户手册、PRD、分析文档
+└── ai-client.js                      # 模型调用封装
 ```
 
-## 🔧 AI 集成
+## 开发命令
 
-本项目集成 Anthropic Claude API：
-- **AI 评审**：`callAIReview()` - 需求分析与评分
-- **文档生成**：`callAIDoc()` - 生成 Markdown 文档
-- **聊天助手**：`handleSendMessage()` - 需求澄清对话
+### 主应用
 
-API 端点：`https://api.anthropic.com/v1/messages`
+```bash
+cd pm-ai-app
+npm run dev
+npm run build
+npm run lint
+```
 
-## 🔄 OpenSpec 工作流
+### 预览应用
 
-支持 Spec-Driven Development (SDD) 框架：
+```bash
+cd preview-apps/vibe-app   # 或 preview-apps/sdd2-app
+npm install
+npm run dev
+```
 
-1. **需求澄清** - AI 助手多轮对话澄清需求
-2. **提案生成** - 自动生成 OpenSpec 标准文档
-3. **在线评审** - 富文本编辑与版本管理
-4. **Git 同步** - 自动提交到仓库
+## AI 模型配置
 
-## 📄 许可证
+在页面右上角进入项目配置：
 
-MIT License
+- AI 模型配置：Claude / GLM / ARK
+- Git 仓库配置：GitHub / GitLab
+- SDD 框架配置：OpenSpec / 其他模板
+- AI Skill 配置：提示词模板管理
 
-## 🤝 贡献
+未配置 API Key 时，部分流程会使用示例回退数据以保证演示可走通。
 
-欢迎提交 Issue 和 Pull Request！
+## OpenSpec 工作流
 
----
+常用命令：
 
-**作者**: Divem
-**更新**: 2026-03-05
+- 创建变更：`/opsx-propose <change-name-or-desc>`
+- 实施任务：`/opsx-apply <change-name>`
+- 归档变更：`/opsx-archive <change-name>`
+
+参考目录：
+
+- active changes：`openspec/changes/`
+- archived changes：`openspec/changes/archive/`
+- main specs：`openspec/specs/`
+
+## 文档索引
+
+- 新用户手册：`md/NEW_USER_DEMO_MANUAL.md`
+- 技术架构说明书：`md/TECHNICAL_ARCHITECTURE.md`
+- 产品 PRD 摘录来源：`md/PM_AI_Plagform_PRD.md`
+
+## 许可证
+
+MIT

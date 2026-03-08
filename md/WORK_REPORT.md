@@ -12,7 +12,7 @@
 
 ### 一、新增 OpenSpec 变更提案
 
-本日共创建并完成 **7** 个变更提案：
+累计共创建 **9** 个变更提案（其中 7 个已完成，2 个进行中）：
 
 | # | 变更名称 | 描述 | 状态 |
 |---|----------|------|------|
@@ -23,6 +23,8 @@
 | 5 | `add-zhipu-glm-model` | 添加智谱 GLM 模型支持 | ✅ 已完成 |
 | 6 | `rename-product-to-agentic-devops` | 产品名称改为 Agentic·DevOps 产研智能工作台 | ✅ 已完成 |
 | 7 | `sdd-add-spec-page-example` | SDD 添加 spec 页面示例 | ✅ 已完成 |
+| 8 | `kanban-multi-select-filter` | 看板多选筛选器（空间 + 迭代级联过滤） | 🔄 进行中 |
+| 9 | `doc-tree-proposal-folders` | 文档树支持多提案文件夹结构 | 🔄 进行中 |
 
 ### 二、新增/修改文件统计
 
@@ -114,11 +116,33 @@ openspec instructions <artifact>       # 获取Artifact创建指引
 openspec status --change "<name>"      # 确认完成
 ```
 
-### 五、待处理
+### 五、进行中提案详情
 
-| 变更名称 | 状态 | 说明 |
-|----------|------|------|
-| `kanban-multi-select-filter` | 📋 进行中 | 看板多选筛选器 |
+#### 8. 看板多选筛选器
+**变更**: `kanban-multi-select-filter`
+为需求看板新增空间 + 迭代级联多选筛选功能，解决卡片数量增多后难以定位的问题。
+
+功能点:
+- 新增 `MultiSelectFilter` 组件，支持空间（Space）多选
+- 迭代（Iteration）多选，且与空间级联：选择空间后迭代下拉仅显示该空间迭代
+- 已选条件以标签形式展示，支持单个 × 关闭或一键清除全部
+- 筛选状态持久化到 `localStorage`，刷新后恢复
+- 无筛选结果时显示友好空状态提示
+
+任务进度: 0/10 已完成（共 7 大组，40+ 子任务）
+
+#### 9. 文档树多提案文件夹结构
+**变更**: `doc-tree-proposal-folders`
+需求详情页文档树支持将一个 PRD 拆解为多个 OpenSpec 提案并以文件夹形式分组显示。
+
+功能点:
+- 数据结构从 `{prd, spec, proposal, design, tasks}` 升级为 `{prd, proposals: [...]}`
+- 每个提案以独立文件夹 📁/📂 展示，支持展开/收起
+- `normalizeDocs()` 兼容旧数据结构，自动迁移为新结构
+- 新增 `ProposalFolder` 子组件，每个提案内包含 4 个文档项（Proposal、Design、Delta Spec、Tasks）
+- 单提案场景自动降级为平铺显示，向后兼容
+
+任务进度: 0/7 已完成（共 7 大组，23 子任务）
 
 ---
 
