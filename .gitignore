@@ -20,5 +20,10 @@ dist/
 build/
 *.log
 
+# Environment variables (contains sensitive API keys)
+.env
+.env.local
+.env.*.local
+
 # Backup files
 *.backup

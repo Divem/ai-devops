@@ -1,6 +1,20 @@
-import React, { useState, useCallback, useRef } from "react";
 
-/* ═══════════════════════════════════ TOKENS ═══════════════════════════════════ */
+/* ════════════════════════════════ API CONFIG ════════════════════════════════════
+ *
+ * 支持多种 AI 模型：Claude (Anthropic) 和 GLM-4 (Zhipu)
+ *
+ * Claude API Key:
+ *   获取地址: https://console.anthropic.com/settings/keys
+ *   localStorage: localStorage.setItem('ai_model_claude_key', 'your-key')
+ *
+ * GLM API Key:
+ *   获取地址: https://open.bigmodel.cn/usercenter/apikeys
+ *   localStorage: localStorage.setItem('ai_model_glm_key', 'your-key')
+ *
+ * 配置优先级: localStorage > 代码常量（仅本地开发，不要上传到 Git）
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+const CLAUDE_API_KEY = "";
+const ZHIPU_API_KEY = "";
 const C = {
   ink:"#0d0e12", paper:"#f5f3ee", cream:"#faf8f3", white:"#ffffff",
   muted:"#9b9b8a", border:"#e2ddd5",
@@ -439,20 +453,554 @@ const DEMO_TASKS_GIT = `# Tasks: Git 同步与版本管理模块
   - **预期工时**: 4h
   - **状态**: 待开始
 
+## 3. Task Dependencies（任务依赖）
+
+- TASK-BE-001 → TASK-BE-002（依赖基础操作能力）
+- TASK-BE-002 → TASK-BE-003（依赖文件同步）
+- TASK-BE-004 可独立进行
+- TASK-BE-005 依赖 TASK-BE-002
+- TASK-FE-001 依赖 TASK-BE-002 / TASK-BE-005
+- TASK-DB-001 需在所有后端任务前完成
+
+## 4. Milestones（里程碑）
+
+- **M1（第1周）**: 完成 TASK-DB-001、TASK-BE-001
+- **M2（第2周）**: 完成 TASK-BE-002、TASK-BE-003
+- **M3（第3周）**: 完成 TASK-BE-004、TASK-BE-005
+- **M4（第4周）**: 完成前端任务和测试环境搭建
+- **M5（第5周）**: 端到端测试和问题修复
+
+**总预期工时**: 130h`;
+
+const DEMO_PROPOSAL_PROPOSAL = `# Proposal: 提案生成模块
+
+**提案 ID**: PROPOSAL-REQ-004 | **版本**: 1.0 | **日期**: 2026/3/3
+
+## 1. Intent（意图）
+
+### 1.1 Problem Statement（问题陈述）
+
+**背景**: 当前团队从需求到设计的文档生成依赖产品经理手动撰写，效率低下且质量参差不齐。每个提案都需要产品经理花费 2-4 小时撰写 proposal.md、design.md 等文档，涉及大量重复性格式调整工作。同时，设计文档规范性难以统一——有的提案结构完整，有的缺少技术方案细节，有的缺少任务分解。
+
+**影响**: 
+- 产品经理花在文档撰写上的时间占需求处理周期 40%。
+- 文档质量依赖个人经验，新人写出的提案常被开发挑战"缺斤少两"。
+- 团队无法快速评估需求价值和优先级，因为提案质量不统一。
+
+### 1.2 Goal（目标）
+
+**业务目标**: 
+- 上线后，产品经理生成完整提案文档的时间从平均 3 小时降至 15 分钟。
+- 生成的提案文档格式合规率从 60% 提升至 95% 以上。
+
+**用户目标**: 
+- 产品经理只需提供结构化需求草案（来自 AI 需求澄清模块），一键生成完整的 proposal、design、specs、tasks 文档。
+- 生成过程中可实时查看进度，生成后可直接在平台内预览和编辑。
+
+## 2. Scope（范围）
+
+### 2.1 In Scope（包含范围）
+
+- 提案生成引擎：基于 AI 的文档生成能力。
+- 模板管理：proposal、design、specs、tasks 四类文档的模板配置。
+- 流式输出：SSE 实时推送生成进度。
+- 预览编辑：在线 Markdown 编辑器和实时预览。
+- 格式校验：生成后自动校验文档结构完整性。
+
+### 2.2 Out of Scope（不包含范围）
+
+- 文档版本管理系统——后续迭代。
+- 团队协作评审功能——由提案评审模块承接。
+- Git 同步功能——由 Git 同步模块承接。
+
+## 3. Approach（方法）
+
+### 3.1 High-Level Solution（高层解决方案）
+
+采用"AI 生成 + 模板填充"的混合架构：
+
+1. **结构化输入**: 接收 AI 需求澄清模块输出的结构化需求草案（包含用户故事、功能列表、非功能需求等）。
+2. **模板选择**: 根据选定的 SDD 框架（OpenSpec）加载对应模板。
+3. **Prompt 组装**: 将需求数据填入 Prompt 模板，指导 AI 生成符合规范的内容。
+4. **流式生成**: 调用 Claude Code API，分块接收生成内容，通过 SSE 推送至前端。
+5. **后处理校验**: 解析生成内容，校验必填章节是否完整，缺失则补充占位符。
+6. **预览渲染**: 前端 Markdown 渲染引擎展示生成结果。
+
+### 3.2 Alternatives（备选方案）
+
+- **方案 B**: 纯模板填充，无 AI 生成
+  - 优点：速度快，结果可控。
+  - 缺点：内容灵活性差，无法根据需求特点自动调整。
+
+- **方案 C**: 用户提供草稿，AI 仅做润色
+  - 优点：保留用户意图。
+  - 缺点：产品经理仍需从零撰写。
+
+**选择方案 A**：AI 生成为主，模板为骨架，平衡效率与质量。
+
+## 4. Dependencies（依赖）
+
+- AI 需求澄清模块：提供结构化需求草案。
+- 规范框架扩展模块：提供 OpenSpec 模板。
+- 前端渲染组件：Markdown 预览和编辑器。
+
+## 5. Risks（风险）
+
+- **生成质量不稳定**: AI 生成内容可能存在事实错误或遗漏。应对策略：提供编辑功能，用户可手动修改；建立 Prompt 优化反馈闭环。
+- **生成耗时过长**: 4 个文档串行生成可能超过 1 分钟。应对策略：优化 Prompt 长度，支持并发生成。
+
+## 6. Metrics（度量指标）
+
+- 文档生成成功率 ≥ 98%。
+- 用户满意度 ≥ 4.0/5.0。
+- 生成内容被直接采纳率 ≥ 80%（无需大改）。
+
+## 7. Open Questions（开放问题）
+
+- Q1：是否需要支持选择性生成（如只生成 proposal 不生成 tasks）？
+- Q2：生成内容是否需要人工审核后才能用于开发？`;
+
+const DEMO_TASKS_PROPOSAL = `# Tasks: 提案生成模块
+
+**任务清单 ID**: TASKS-REQ-004 | **关联提案**: PROPOSAL-REQ-004 | **版本**: 1.0 | **日期**: 2026/3/3
+
+## 1. Overview（概述）
+
+本任务清单将提案生成模块的设计方案分解为可执行的原子开发任务，覆盖后端生成引擎、前端编辑器、模板管理和质量校验。目标是实现产品经理一键生成完整提案文档包的能力。
+
+## 2. Development Tasks（开发任务）
+
+### 2.1 Backend Tasks（后端任务）
+
+- **TASK-BE-001**: 生成编排器开发
+  - **描述**: 实现 GenerationOrchestrator，协调整个文档生成流程。管理生成状态（PENDING → GENERATING → COMPLETED / FAILED），支持并发控制和超时处理。
+  - **关联需求**: REQ-004
+  - **预期工时**: 16h
+  - **状态**: 待开始
+
+- **TASK-BE-002**: Prompt 构建器开发
+  - **描述**: 实现 PromptBuilder，根据结构化需求数据和文档模板组装 Prompt。维护 proposal、design、specs、tasks 四类文档的 Prompt 模板。
+  - **关联需求**: REQ-004
+  - **预期工时**: 20h
+  - **状态**: 待开始
+
+- **TASK-BE-003**: 内容生成器开发
+  - **描述**: 实现 ContentGenerator，调用 Claude Code API 生成文档内容。实现 SSE 流式输出，每生成一个段落即推送到前端。
+  - **关联需求**: REQ-004
+  - **预期工时**: 16h
+  - **状态**: 待开始
+
+- **TASK-BE-004**: 文档组装器开发
+  - **描述**: 实现 DocumentAssembler，将 AI 生成的原始内容按模板结构组装为标准 Markdown 文件。实现后处理校验，补充缺失的必填章节。
+  - **关联需求**: REQ-004
+  - **预期工时**: 12h
+  - **状态**: 待开始
+
+- **TASK-BE-005**: 模板管理 API 开发
+  - **描述**: 开发模板 CRUD API，支持在线编辑模板内容、版本管理和预览。支持 OpenSpec 框架的四类文档模板配置。
+  - **关联需求**: REQ-004
+  - **预期工时**: 10h
+  - **状态**: 待开始
+
+### 2.2 Frontend Tasks（前端任务）
+
+- **TASK-FE-001**: 生成入口与进度展示
+  - **描述**: 在需求详情页新增"生成提案"按钮，点击后弹窗展示生成进度（文档类型 → 生成中 → 完成）。支持 SSE 接收实时进度。
+  - **预期工时**: 12h
+  - **状态**: 待开始
+
+- **TASK-FE-002**: Markdown 编辑器集成
+  - **描述**: 集成 Monaco Editor 或 CodeMirror 作为 Markdown 编辑器，支持语法高亮、自动补全、快捷键保存。
+  - **预期工时**: 16h
+  - **状态**: 待开始
+
+- **TASK-FE-003**: 实时预览组件
+  - **描述**: 开发 Markdown 实时预览组件，支持与编辑器分屏展示。点击预览区域可定位到编辑器对应位置。
+  - **预期工时**: 10h
+  - **状态**: 待开始
+
+- **TASK-FE-004**: 文档包概览与导航
+  - **描述**: 在提案详情页展示四个文档的 tab 切换，每个 tab 显示文档标题和状态（待生成 / 生成中 / 已生成）。支持一键展开/折叠所有文档。
+  - **预期工时**: 8h
+  - **状态**: 待开始
+
+### 2.3 Data/DB Tasks（数据/数据库任务）
+
+- **TASK-DB-001**: 生成任务表设计
+  - **描述**: 设计 generation_jobs 表和 document_versions 表，记录生成任务状态、文档内容和版本历史。编写迁移脚本。
+  - **预期工时**: 6h
+  - **状态**: 待开始
+
+- **TASK-DB-002**: 模板存储表设计
+  - **描述**: 设计 document_templates 表，存储模板内容、版本号、框架类型和创建时间。
+  - **预期工时**: 4h
+  - **状态**: 待开始
+
+### 2.4 Quality Assurance Tasks（质量保障任务）
+
+- **TASK-QA-001**: 生成质量评测集构建
+  - **描述**: 收集 50 组真实需求样本，涵盖不同类型和复杂度。人工标注每组需求的理想生成结果，作为 Prompt 优化的评测基准。
+  - **预期工时**: 16h
+  - **状态**: 待开始
+
+- **TASK-QA-002**: 端到端测试用例编写
+  - **描述**: 编写 E2E 测试用例，覆盖：结构化输入 → 生成请求 → 流式接收 → 预览展示 → 编辑保存全流程。
+  - **预期工时**: 12h
+  - **状态**: 待开始
+
+## 3. Task Dependencies（任务依赖）
+
+- TASK-DB-001 / TASK-DB-002 需在所有后端任务前完成
+- TASK-BE-001 → TASK-BE-002 → TASK-BE-003 → TASK-BE-004（串行依赖）
+- TASK-BE-005 可独立进行
+- TASK-FE-001 依赖 TASK-BE-003（流式输出）
+- TASK-FE-002 / TASK-FE-003 依赖 TASK-BE-004（文档结构）
+- TASK-QA-001 需在 TASK-BE-002 完成后启动
+
+## 4. Milestones（里程碑）
+
+- **M1（第1周）**: 完成数据库设计和 TASK-BE-001
+- **M2（第2周）**: 完成 Prompt 构建器和内容生成器
+- **M3（第3周）**: 完成模板管理和文档组装器
+- **M4（第4周）**: 完成前端编辑器组件
+- **M5（第5周）**: 完成质量评测和 E2E 测试
+
+**总预期工时**: 158h
+
 ## 3. Open Questions（开放问题）
 
 - OQ-T1：是否需要支持 Git 仓库的 SSH 方式连接？初步建议 V1.0 仅支持 HTTPS + Token，SSH 在 V1.5 支持。
 - OQ-T2：PR/MR 模板是否需要支持自定义？建议 V1.0 使用固定模板，后续迭代支持配置化。
 - OQ-T3：并发同步场景下是否需要加锁？建议同一需求同时只允许一个同步任务。`;
 
+/* ═══════════════════════════════ API ══════════════════════════════════════
+ * 使用 AIClient 统一接口，支持 Claude 和 GLM 模型
+ * 模型选择: localStorage.getItem('ai_model_selected') || 'claude'
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+function getSelectedModel() {
+  return localStorage.getItem('ai_model_selected') || 'claude';
+}
+
+async function callAI(prompt, maxTokens=1800) {
+  const model = getSelectedModel();
+  const client = new AIClient(model);
+  return await client.chat(prompt, maxTokens);
+}
+
+async function callAIReview(card) {
+  const text = await callAI(`你是资深产品经理评审专家。请对以下需求评审，从完整性、逻辑性、风险三个维度打分（0-100）。
+需求ID: ${card.id} | 标题: ${card.title} | 描述: ${card.desc} | 用户故事: ${card.userStory} | 验收标准: ${card.acceptanceCriteria.join("；")}
+严格按JSON返回：{"score":<0-100>,"completeness":<0-100>,"logic":<0-100>,"risk":<0-100>,"summary":"<2-3句>","risks":["<r1>","<r2>","<r3>"],"suggestions":["<s1>","<s2>","<s3>"],"passed":<bool,>=70为true>}`);
+  return JSON.parse(text.replace(/```json|```/g,"").trim());
+}
+
+const DOC_PROMPTS = {
+  prd: (card) => `你是资深产品经理。根据以下需求信息，生成标准PRD文档内容（Markdown格式）。
+
+需求标题: ${card.title}
+需求描述: ${card.desc}
+用户故事: ${card.userStory}
+验收标准: ${card.acceptanceCriteria.join("；")}
+标签: ${card.tags.join("、")}
+
+请生成完整的Markdown格式PRD，包含以下章节，内容丰富专业：
+
+# ${card.title}
+
+**版本**: V1.0 | **作者**: AI生成 | **日期**: ${new Date().toLocaleDateString("zh-CN")}
+
+## 1. 概述
+
+### 1.1 背景与目标
+
+**背景**: ${card.desc}
+
+**目标**: [详细描述短期和长期目标]
+
+### 1.2 产品愿景
+
+[一句话愿景]
+
+## 2. 用户与场景
+
+### 2.1 目标用户
+
+[用户画像描述]
+
+### 2.2 用户故事
+
+${card.userStory}
+
+### 2.3 使用场景
+
+[描述典型使用场景]
+
+## 3. 功能需求
+
+### 3.1 核心功能
+
+- **功能1**: [功能名称]
+  - **描述**: [详细描述]
+  - **优先级**: P0/P1/P2
+
+### 3.2 非功能需求
+
+- **性能**: [性能要求]
+- **安全**: [安全要求]
+- **兼容性**: [兼容性要求]
+
+## 4. 验收标准
+
+${card.acceptanceCriteria.map((c, i) => `${i + 1}. ${c}`).join("\n")}
+
+## 5. 限制与约束
+
+[技术、业务、时间等约束]
+
+请直接输出Markdown内容，内容要具体、专业，不要使用占位符。`,
+
+  proposal: (card) => `你是技术提案专家。根据以下需求生成 OpenSpec 格式的 Proposal 文档。
+
+需求: ${card.title} - ${card.desc}
+
+生成 proposal.md，包含：
+
+# Proposal: ${card.title}
+
+## Intent (意图)
+
+[我们想要达成什么目标？]
+
+## Scope (范围)
+
+- **In Scope**: [包含的内容]
+- **Out of Scope**: [明确不包含的内容]
+
+## Approach (方法)
+
+[我们计划如何实现？]
+
+## Alternatives Considered (备选方案)
+
+- **方案A**: [描述]
+- **方案B**: [描述]
+
+## Risks & Mitigation (风险与缓解)
+
+| 风险 | 影响 | 缓解措施 |
+|------|------|----------|
+| ... | ... | ... |
+
+请直接输出Markdown内容。`,
+
+  design: (card) => `你是技术设计专家。根据以下需求生成 Design 文档。
+
+需求: ${card.title} - ${card.desc}
+
+生成 design.md，包含：
+
+# Design: ${card.title}
+
+## Overview (概览)
+
+[系统架构概览]
+
+## Technical Solution (技术方案)
+
+### 前端架构
+
+### 后端架构
+
+### 数据模型
+
+## API Definitions (接口定义)
+
+\`\`\`typescript
+// API 接口定义
+\`\`\`
+
+## Data Flow (数据流)
+
+[描述关键数据流]
+
+## Security & Privacy (安全与隐私)
+
+[安全考虑]
+
+请直接输出Markdown内容。`,
+
+  tasks: (card) => `你是项目管理专家。根据以下需求生成任务清单。
+
+需求: ${card.title} - ${card.desc}
+
+生成 tasks.md，包含：
+
+# Tasks: ${card.title}
+
+## Backend Tasks（后端任务）
+
+- **TASK-BE-001**: [任务名称]
+  - **描述**: [详细描述]
+  - **预期工时**: [Xh]
+  - **状态**: 待开始
+
+## Frontend Tasks（前端任务）
+
+- **TASK-FE-001**: [任务名称]
+  - **描述**: [详细描述]
+  - **预期工时**: [Xh]
+  - **状态**: 待开始
+
+## Testing Tasks（测试任务）
+
+- **TASK-T-001**: [测试任务]
+  - **描述**: [测试场景]
+  - **预期工时**: [Xh]
+  - **状态**: 待开始
+
+请直接输出Markdown内容，工时和任务标题请根据需求合理填写。`
+};
+
+async function callAIDoc(card, docType) {
+  const prompt = DOC_PROMPTS[docType](card);
+  return await callAI(prompt, 2000);
+}
+
 /* ═══════════════════════════ INITIAL DATA ═══════════════════════════════════ */
 const mkDocs = () => ({ prd:null, proposal:null, design:null, tasks:null });
 const INITIAL_CARDS = [
-  {id:"REQ-001",col:"confirm",priority:"P0",title:"需求列表页面（看板视图）",desc:"提供直观的多列看板视图，展示从 Meego 同步过来的业务需求，支持拖拽流转、筛选排序和 AI 评审分数展示，作为整个智能需求管理工作台的核心入口。",tags:["看板","基础能力","Meego"],author:"张晓薇",date:"2026-02-24",userStory:"作为产品经理，我希望在看板上直观看到所有需求的处理阶段，以便快速了解哪些需求在等待评审。",acceptanceCriteria:["6列看板：待评审/评审中/AI分析中/人工确认/已通过/已拒绝","支持拖拽需求卡片改变阶段","需求卡片展示编号、优先级、标题、AI评审分数","Meego数据每15分钟自动同步"],aiResult:{score:88,completeness:92,logic:86,risk:84,summary:"需求描述清晰，看板交互定义完整，Meego同步机制考虑周到。建议补充看板性能要求和WIP限制策略。",risks:["Meego API 变更可能导致同步中断","大量需求卡片可能影响渲染性能","拖拽操作在移动端适配困难"],suggestions:["增加看板虚拟滚动方案","明确单列WIP上限","考虑移动端替代交互方案"],passed:true},docs:{prd:DEMO_PRD_KANBAN,proposal:null,design:null,tasks:null},chatHistory:[]},
-  {id:"REQ-002",col:"approved",priority:"P0",title:"AI 需求澄清模块",desc:"集成在需求详情页的对话界面，产品经理与 AI 助手多轮对话澄清需求。AI 主动提问、实时结构化输出、支持 UI 弹框确认，并持续评估需求的完整性、逻辑性和风险。",tags:["AI","对话","核心能力"],author:"李明",date:"2026-02-24",userStory:"作为产品经理，我希望 AI 助手能主动发现需求中缺失的关键信息，以便快速补全需求、减少返工。",acceptanceCriteria:["AI首轮回复延迟≤3秒","支持上下文多轮对话，最多10轮历史","关键确认通过Modal弹框呈现","实时输出结构化需求草案","从完整性/逻辑性/风险三维度评分"],aiResult:{score:91,completeness:94,logic:90,risk:88,summary:"需求定义完整，AI交互流程设计合理，弹框确认机制是亮点。技术可行性评估充分。",risks:["AI 评审准确度需持续校准","过多追问可能导致用户体验下降"],suggestions:["增加对话轮次上限配置","建立AI评审反馈闭环"],passed:true},docs:{prd:DEMO_PRD_AI,proposal:null,design:null,tasks:null},chatHistory:[]},
+  {id:"REQ-001",col:"confirm",priority:"P0",title:"需求列表页面（看板视图）",desc:"提供直观的多列看板视图，展示从 Meego 同步过来的业务需求，支持拖拽流转、筛选排序和 AI 评审分数展示，作为整个智能需求管理工作台的核心入口。",tags:["看板","基础能力","Meego"],author:"张晓薇",date:"2026-02-24",userStory:"作为产品经理，我希望在看板上直观看到所有需求的处理阶段，以便快速了解哪些需求在等待评审。",acceptanceCriteria:["6列看板：待评审/评审中/AI分析中/人工确认/已通过/已拒绝","支持拖拽需求卡片改变阶段","需求卡片展示编号、优先级、标题、AI评审分数","Meego数据每15分钟自动同步"],feishuUrl:"https://bytedance.feishu.cn/docx/XXXXXX",aiResult:{score:88,completeness:92,logic:86,risk:84,summary:"需求描述清晰，看板交互定义完整，Meego同步机制考虑周到。建议补充看板性能要求和WIP限制策略。",risks:["Meego API 变更可能导致同步中断","大量需求卡片可能影响渲染性能","拖拽操作在移动端适配困难"],suggestions:["增加看板虚拟滚动方案","明确单列WIP上限","考虑移动端替代交互方案"],passed:true},docs:{prd:DEMO_PRD_KANBAN,proposal:null,design:null,tasks:null},chatHistory:[]},
+  {id:"REQ-002",col:"approved",priority:"P0",title:"AI 需求澄清模块",desc:"集成在需求详情页的对话界面，产品经理与 AI 助手多轮对话澄清需求。AI 主动提问、实时结构化输出、支持 UI 弹框确认，并持续评估需求的完整性、逻辑性和风险。",tags:["AI","对话","核心能力"],author:"李明",date:"2026-02-24",userStory:"作为产品经理，我希望 AI 助手能主动发现需求中缺失的关键信息，以便快速补全需求、减少返工。",acceptanceCriteria:["AI首轮回复延迟≤3秒","支持上下文多轮对话，最多10轮历史","关键确认通过Modal弹框呈现","实时输出结构化需求草案","从完整性/逻辑性/风险三维度评分"],feishuUrl:"https://bytedance.feishu.cn/docx/YYYYYY",aiResult:{score:91,completeness:94,logic:90,risk:88,summary:"需求定义完整，AI交互流程设计合理，弹框确认机制是亮点。技术可行性评估充分。",risks:["AI 评审准确度需持续校准","过多追问可能导致用户体验下降"],suggestions:["增加对话轮次上限配置","建立AI评审反馈闭环"],passed:true},docs:{prd:DEMO_PRD_AI,proposal:null,design:null,tasks:null},chatHistory:[]},
   {id:"REQ-003",col:"reviewing",priority:"P1",title:"规范框架扩展模块",desc:"支持集成和管理多种 SDD 规范框架（如 OpenSpec、Open-Kit），提供插件化接入机制和规范适配器，将 AI 通用输出转换为特定框架文档格式。",tags:["SDD","插件化","架构"],author:"王芳",date:"2026-02-24",userStory:"作为产品经理，我希望根据项目需求选择合适的规范框架，以便生成的文档符合团队标准。",acceptanceCriteria:["插件化框架接入机制，新框架≤3天接入","V1.0完成OpenSpec适配器","模板可配置，支持版本管理","规范适配器转换准确率≥95%"],aiResult:null,docs:{prd:null,proposal:DEMO_PROPOSAL_SPEC,design:null,tasks:null},chatHistory:[]},
-  {id:"REQ-004",col:"ai_review",priority:"P1",title:"提案生成模块",desc:"基于 AI 澄清后的结构化需求，结合选定的规范框架，一键生成 proposal.md、design.md、specs/delta.md、tasks.md 等完整提案文档包。支持流式输出和在线预览编辑。",tags:["AI生成","OpenSpec","核心能力"],author:"陈刚",date:"2026-02-24",userStory:"作为产品经理，我希望一键生成完整的OpenSpec提案包，以便快速进入评审和开发流程。",acceptanceCriteria:["一键生成4类文档（proposal/design/spec/tasks）","支持SSE流式输出，用户可实时看到生成进度","生成完成后支持在线预览和Markdown编辑","生成文档格式合规率≥95%"],aiResult:null,docs:{prd:null,proposal:null,design:DEMO_DESIGN_PROPOSAL,tasks:null},chatHistory:[]},
-  {id:"REQ-005",col:"backlog",priority:"P2",title:"提案评审与修改模块",desc:"提供友好的界面供产品经理对 AI 生成的提案进行在线评审、修改和版本管理。支持分屏对比、评论批注和版本历史回溯。",tags:["评审","协作","编辑器"],author:"刘洋",date:"2026-02-24",userStory:"作为产品经理，我希望在平台内直接对AI生成的提案进行修改和批注，以便和团队高效协作。",acceptanceCriteria:["分屏对比：AI草稿 vs 修改版","支持段落级评论批注","版本历史可回溯和恢复","提案状态：草稿→待评审→已确认"],aiResult:null,docs:mkDocs(),chatHistory:[]},
+  {id:"REQ-004",col:"ai_review",priority:"P1",title:"提案生成模块",desc:"基于 AI 澄清后的结构化需求，结合选定的规范框架，一键生成 proposal.md、design.md、specs/delta.md、tasks.md 等完整提案文档包。支持流式输出和在线预览编辑。",tags:["AI生成","OpenSpec","核心能力"],author:"陈刚",date:"2026-02-24",userStory:"作为产品经理，我希望一键生成完整的OpenSpec提案包，以便快速进入评审和开发流程。",acceptanceCriteria:["一键生成4类文档（proposal/design/spec/tasks）","支持SSE流式输出，用户可实时看到生成进度","生成完成后支持在线预览和Markdown编辑","生成文档格式合规率≥95%"],aiResult:null,docs:{prd:null,proposal:DEMO_PROPOSAL_PROPOSAL,design:DEMO_DESIGN_PROPOSAL,tasks:DEMO_TASKS_PROPOSAL},chatHistory:[]},
+  {id:"REQ-005",col:"backlog",priority:"P2",title:"提案评审与修改模块",desc:"提供友好的界面供产品经理对 AI 生成的提案进行在线评审、修改和版本管理。支持分屏对比、评论批注和版本历史回溯。",tags:["评审","协作","编辑器"],author:"刘洋",date:"2026-02-24",userStory:"作为产品经理，我希望在平台内直接对AI生成的提案进行修改和批注，以便和团队高效协作。",acceptanceCriteria:["分屏对比：AI草稿 vs 修改版","支持段落级评论批注","版本历史可回溯和恢复","提案状态：草稿→待评审→已确认"],aiResult:null,docs:{prd:null,proposal:`# Proposal: 提案评审与修改模块
+
+**提案 ID**: PROPOSAL-REQ-005 | **版本**: 1.0 | **日期**: 2026/3/3
+
+## 1. Intent（意图）
+
+### 1.1 Problem Statement（问题陈述）
+
+**背景**: AI 生成的提案文档虽然格式规范，但内容可能存在事实错误、遗漏或表述不清的地方。当前产品经理需要将提案复制到外部编辑器（如飞书、Notion）进行评审和修改，这导致：
+- 修改记录无法追溯
+- 多人协作困难
+- 修改后需要手动同步回平台
+
+### 1.2 Goal（目标）
+
+**业务目标**: 
+- 评审效率提升 50%，无需跳转到外部工具。
+- 团队协作评审覆盖率达到 80%。
+
+**用户目标**: 
+- 在平台内直接评审和修改 AI 生成的提案。
+- 追踪每次修改的历史版本。
+
+## 2. Scope（范围）
+
+### 2.1 In Scope（包含范围）
+- 分屏对比视图（AI 草稿 vs 修改版）
+- 评论批注功能
+- 版本历史管理
+- 提案状态流转
+
+### 2.2 Out of Scope（不包含范围）
+- 多人实时协同编辑（后续迭代）
+
+## 3. Approach（方法）
+
+采用"在线编辑器 + 版本快照"的架构：
+1. Monaco Editor 作为编辑器
+2. 每次保存生成新版本快照
+3. Diff 算法实现分屏对比
+4. 评论数据独立存储，与文档行号关联
+
+## 4. Dependencies（依赖）
+- 提案生成模块（提供待评审内容）
+- Markdown 渲染组件
+
+## 5. Risks（风险）
+- 大文档编辑性能问题 → 考虑分页加载
+
+## 6. Metrics（度量指标）
+- 评审完成率 ≥ 90%
+- 版本回溯使用率 ≥ 20%`,design:`# Design: 提案评审与修改模块
+
+**设计 ID**: DESIGN-REQ-005 | **关联提案**: PROPOSAL-REQ-005 | **版本**: 1.0 | **日期**: 2026/3/3
+
+## 1. Overview（概述）
+
+本设计描述提案评审与修改模块的技术方案，实现提案文档的在线评审、编辑和版本管理。
+
+## 2. Architecture Design（架构设计）
+
+### 2.1 System Context
+- **上游**: 提案生成模块
+- **下游**: Git 同步模块
+- **依赖**: 用户认证服务
+
+### 2.2 Components
+- **ReviewEditor**: 在线 Markdown 编辑器
+- **VersionManager**: 版本快照管理
+- **DiffEngine**: 分屏对比引擎
+- **CommentService**: 评论批注服务
+
+### 2.3 Data Model
+
+- **ProposalVersion**:
+  - \`id\`, \`proposal_id\`, \`version\`, \`content\`, \`created_by\`, \`created_at\`
+- **Comment**:
+  - \`id\`, \`proposal_id\`, \`line_start\`, \`line_end\`, \`content\`, \`author\`, \`created_at\`
+
+## 3. Technical Solution
+
+### 3.1 Key Technologies
+- **Editor**: Monaco Editor（VS Code 同款）
+- **Diff**: diff-match-patch 库
+- **Storage**: PostgreSQL JSONB 字段
+
+### 3.2 API Definitions
+- \`GET /api/v1/proposals/{id}/versions\` — 获取版本列表
+- \`POST /api/v1/proposals/{id}/versions\` — 创建新版本
+- \`GET /api/v1/proposals/{id}/versions/{v1}/diff/{v2}\` — 获取两个版本的差异
+
+### 3.3 Business Logic
+1. 用户打开提案 → 加载最新版本到编辑器
+2. 用户编辑 → 自动保存草稿
+3. 用户点击"保存版本" → 生成新快照
+4. 用户点击"对比" → 分屏展示两个版本差异
+
+## 4. Open Questions
+- OQ-1: 评论是否需要支持回复？`,tasks:`# Tasks: 提案评审与修改模块
+
+**任务清单 ID**: TASKS-REQ-005 | **版本**: 1.0 | **日期**: 2026/3/3
+
+## 1. Development Tasks
+
+### 1.1 Backend Tasks
+- **TASK-BE-001**: 版本管理 API（8h）
+- **TASK-BE-002**: 评论 CRUD API（10h）
+- **TASK-BE-003**: Diff 计算服务（12h）
+
+### 1.2 Frontend Tasks
+- **TASK-FE-001**: Monaco Editor 集成（16h）
+- **TASK-FE-002**: 分屏对比视图（12h）
+- **TASK-FE-003**: 评论批注 UI（10h）
+- **TASK-FE-004**: 版本历史面板（8h）
+
+### 1.3 Data Tasks
+- **TASK-DB-001**: 版本表和评论表设计（6h）
+
+## 2. Dependencies
+- TASK-DB-001 → 所有后端任务
+- TASK-BE-001 → TASK-BE-002 → TASK-BE-003
+
+## 3. Milestones
+- **M1（第1周）**: 完成数据库和版本 API
+- **M2（第2周）**: 完成编辑器集成
+- **M3（第3周）**: 完成对比和评论功能
+
+**总工时**: 82h`},chatHistory:[]},
   {id:"REQ-006",col:"confirm",priority:"P1",title:"Git 同步与版本管理模块",desc:"实现 OpenSpec 提案与 Git 仓库的自动化同步。产品经理确认提案后系统自动生成 Git Commit，将文件提交到指定目录下，并可选创建 PR/MR。",tags:["Git","DevOps","集成"],author:"陈刚",date:"2026-02-24",userStory:"作为产品经理，我希望确认提案后一键同步至Git仓库，以便开发人员直接拉取最新设计文档。",acceptanceCriteria:["支持GitHub/GitLab/Gitee三大平台","自动提交至openspec/changes/<name>/目录","可选创建PR/MR并回写链接","Git提交成功率≥99.5%"],aiResult:{score:82,completeness:85,logic:84,risk:76,summary:"需求整体清晰，Git集成方案可行。建议补充凭据安全管理方案和并发同步冲突策略。",risks:["Git凭据安全存储需专门方案","多人同时同步可能产生冲突","网络不稳定导致push失败"],suggestions:["引入Vault管理Git凭据","实现同步任务排队机制","增加push失败重试和告警"],passed:true},docs:{prd:null,proposal:null,design:null,tasks:DEMO_TASKS_GIT},chatHistory:[]},
 ];
 
@@ -751,7 +1299,7 @@ function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onUpdateCard }
     const updatedHistory = [...chatHistory, newMessage];
 
     try {
-      const response = await callClaude(
+      const response = await callAI(
         `你是产品需求分析专家。针对以下需求回答用户的问题。
 
 需求标题: ${card.title}
@@ -814,7 +1362,17 @@ function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onUpdateCard }
         <div style={{padding:"0 18px",display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:12,color:"#888"}}>设计工作台</span>
           <span style={{color:"#444"}}>/</span>
-          {selCard && <span style={{fontSize:12,color:C.sbText,fontWeight:500}}>{selCard.id}</span>}
+          {selCard && (
+            selCard.feishuUrl ? (
+              <a href={selCard.feishuUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:C.sbText,fontWeight:500,textDecoration:"none",borderBottom:"1px dashed C.sbText",cursor:"pointer"}}
+                onMouseEnter={e=>{e.currentTarget.style.color=C.accent;e.currentTarget.style.borderBottomColor=C.accent;}}
+                onMouseLeave={e=>{e.currentTarget.style.color=C.sbText;e.currentTarget.style.borderBottomColor=C.sbText;}}>
+                {selCard.id}
+              </a>
+            ) : (
+              <span style={{fontSize:12,color:C.sbText,fontWeight:500}}>{selCard.id}</span>
+            )
+          )}
           {selCard && <span style={{color:"#444"}}>/</span>}
           {selDocMeta && <span style={{fontSize:12,color:selDocMeta.color,fontWeight:600}}>{selDocMeta.label}</span>}
         </div>

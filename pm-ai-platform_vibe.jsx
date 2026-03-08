@@ -1,4 +1,3 @@
-import { useState, useCallback, useRef } from "react";
 
 /* ═══════════════════════════════════ TOKENS ═══════════════════════════════════ */
 const C = {
@@ -37,25 +36,293 @@ const scoreBg       = s => s>=80?C.successLight:s>=60?C.warnLight:C.dangerLight;
 /* ═══════════════════════════ INITIAL DATA ═══════════════════════════════════ */
 const mkDocs = () => ({ prd:null, proposal:null, design:null, tasks:null });
 const INITIAL_CARDS = [
-  {id:"REQ-001",col:"backlog",priority:"P0",title:"用户购买流程优化 — 一键下单",desc:"当前用户完成购买需要 7 步操作，竞品平均 3 步。目标将核心购买路径缩短至 3 步，减少结账跳失率 25%。",tags:["电商","体验优化"],author:"张晓薇",date:"2025-03-01",userStory:"作为用户，我希望能在商品详情页直接完成支付，无需跳转多个页面。",acceptanceCriteria:["商品页→支付页≤2次跳转","支持微信/支付宝/Apple Pay","异常中断后恢复购物车"],aiResult:null,docs:mkDocs()},
-  {id:"REQ-002",col:"backlog",priority:"P1",title:"消息中心全局未读角标",desc:"App 首页/底部 Tab 需展示消息未读数，跨会话持久化，推送同步。",tags:["通知","基础能力"],author:"李明",date:"2025-03-02",userStory:"作为用户，我希望随时知道有多少未读消息，不错过重要通知。",acceptanceCriteria:["角标数字实时同步","已读后立即清零","超99显示99+"],aiResult:null,docs:mkDocs()},
-  {id:"REQ-003",col:"reviewing",priority:"P1",title:"搜索结果页个性化排序",desc:"基于用户历史行为、地理位置、偏好标签对搜索结果进行个性化重排，提升点击率和转化率。",tags:["搜索","个性化","算法"],author:"王芳",date:"2025-02-28",userStory:"作为用户，我希望搜索结果能更贴合我的偏好，减少无关内容干扰。",acceptanceCriteria:["CTR提升≥15%","冷启动用户默认时间序","支持用户手动切换排序方式"],aiResult:null,docs:mkDocs()},
-  {id:"REQ-004",col:"confirm",priority:"P2",title:"订单状态实时推送",desc:"用户下单后，各关键状态节点通过 Push + 站内信双通道推送。",tags:["推送","订单"],author:"陈刚",date:"2025-02-26",userStory:"作为用户，我希望实时了解订单进展，不需要主动刷新页面。",acceptanceCriteria:["Push到达率≥95%","延迟≤3秒","用户可配置推送开关"],aiResult:{score:82,completeness:88,logic:85,risk:72,summary:"需求整体清晰，验收标准可量化。建议补充Push失败降级策略和消息幂等设计。",risks:["高峰期推送延迟可能超标","iOS后台推送受系统限制"],suggestions:["增加消息去重逻辑","明确失败重试次数上限"],passed:true},docs:mkDocs()},
-  {id:"REQ-005",col:"approved",priority:"P0",title:"登录态长效保持（30天免登）",desc:"用户勾选「30天内免登录」后，Token 有效期延长，合规刷新机制保障安全。",tags:["账号","安全"],author:"刘洋",date:"2025-02-20",userStory:"作为用户，我希望在常用设备上长期保持登录状态，减少重复输入密码。",acceptanceCriteria:["30天内免重新登录","Token刷新无感知","异地登录触发验证"],aiResult:{score:91,completeness:93,logic:90,risk:88,summary:"需求描述完整，安全边界考虑充分。",risks:["Token泄露风险需设备绑定加固"],suggestions:["增加设备管理入口"],passed:true},docs:mkDocs()},
+  // 1. 需求列表页面（看板视图）
+  {
+    id: "REQ-100",
+    col: "backlog",
+    priority: "P0",
+    space: "需求管理",
+    iteration: "2026Q1-Sprint1",
+    title: "需求列表页面（看板视图）",
+    desc: "提供直观的多列看板视图，展示从 Meego 同步过来的业务需求，支持拖拽流转、筛选排序和 AI 评审分数展示，作为整个智能需求管理工作台的核心入口。",
+    tags: ["看板", "基础能力", "Meego"],
+    author: "张晓薇",
+    date: "2026-02-24",
+    userStory: "作为一个 产品经理，我希望 在看板上直观看到所有需求的处理阶段，以便 快速了解哪些需求在等待评审、哪些在 AI 分析中。",
+    acceptanceCriteria: [
+      "6列看板：待评审/评审中/AI分析中/人工确认/已通过/已拒绝",
+      "支持拖拽需求卡片改变阶段",
+      "需求卡片展示编号、优先级、标题、AI评审分数",
+      "Meego数据每15分钟自动同步"
+    ],
+    aiResult: {
+      score: 88,
+      completeness: 92,
+      logic: 86,
+      risk: 84,
+      summary: "需求描述清晰，看板交互定义完整，Meego同步机制考虑周到。建议补充看板性能要求和WIP限制策略。",
+      risks: ["Meego API 变更可能导致同步中断", "大量需求卡片可能影响渲染性能", "拖拽操作在移动端适配困难"],
+      suggestions: ["增加看板虚拟滚动方案", "明确单列WIP上限", "考虑移动端替代交互方案"],
+      passed: true
+    },
+    docs: mkDocs()
+  },
+
+  // 2. AI 需求澄清模块
+  {
+    id: "REQ-101",
+    col: "reviewing",
+    priority: "P0",
+    title: "AI 需求澄清模块",
+    desc: "集成在需求详情页的对话界面，产品经理与 AI 助手多轮对话澄清需求。AI 主动提问、实时结构化输出、支持 UI 弹框确认，并持续评估需求的完整性、逻辑性和风险。",
+    tags: ["AI", "对话", "核心能力"],
+    author: "李明",
+    date: "2026-02-24",
+    userStory: "作为一个 产品经理，我希望 AI 助手能主动发现需求中缺失的关键信息，以便 快速补全需求、减少返工。",
+    acceptanceCriteria: [
+      "AI首轮回复延迟≤3秒",
+      "支持上下文多轮对话，最多10轮历史",
+      "关键确认通过Modal弹框呈现",
+      "实时输出结构化需求草案",
+      "从完整性/逻辑性/风险三维度评分"
+    ],
+    aiResult: {
+      score: 91,
+      completeness: 94,
+      logic: 90,
+      risk: 88,
+      summary: "需求定义完整，AI交互流程设计合理，弹框确认机制是亮点。技术可行性评估充分。",
+      risks: ["AI 评审准确度需持续校准", "过多追问可能导致用户体验下降"],
+      suggestions: ["增加对话轮次上限配置", "建立AI评审反馈闭环"],
+      passed: true
+    },
+    docs: mkDocs()
+  },
+
+  // 3. 规范框架扩展模块
+  {
+    id: "REQ-102",
+    col: "ai_review",
+    priority: "P1",
+    title: "规范框架扩展模块",
+    desc: "支持集成和管理多种 SDD 规范框架（如 OpenSpec、Open-Kit），提供插件化接入机制和规范适配器，将 AI 通用输出转换为特定框架文档格式。",
+    tags: ["SDD", "插件化", "架构"],
+    author: "王芳",
+    date: "2026-02-24",
+    userStory: "作为一个 产品经理，我希望 根据项目需求选择合适的规范框架，以便 生成的文档符合团队标准。",
+    acceptanceCriteria: [
+      "插件化框架接入机制，新框架≤3天接入",
+      "V1.0完成OpenSpec适配器",
+      "模板可配置，支持版本管理",
+      "规范适配器转换准确率≥95%"
+    ],
+    aiResult: null,
+    docs: mkDocs()
+  },
+
+  // 4. 提案生成模块
+  {
+    id: "REQ-103",
+    col: "ai_review",
+    priority: "P1",
+    title: "提案生成模块",
+    desc: "基于 AI 澄清后的结构化需求，结合选定的规范框架，一键生成 proposal.md、design.md、specs/delta.md、tasks.md 等完整提案文档包。支持流式输出和在线预览编辑。",
+    tags: ["AI生成", "OpenSpec", "核心能力"],
+    author: "陈刚",
+    date: "2026-02-24",
+    userStory: "作为一个 产品经理，我希望 一键生成完整的OpenSpec提案包，以便 快速进入评审和开发流程。",
+    acceptanceCriteria: [
+      "一键生成4类文档（proposal/design/spec/tasks）",
+      "支持SSE流式输出，用户可实时看到生成进度",
+      "生成完成后支持在线预览和Markdown编辑",
+      "生成文档格式合规率≥95%"
+    ],
+    aiResult: null,
+    docs: mkDocs()
+  },
+
+  // 5. 提案评审与修改模块
+  {
+    id: "REQ-104",
+    col: "backlog",
+    priority: "P2",
+    title: "提案评审与修改模块",
+    desc: "提供友好的界面供产品经理对 AI 生成的提案进行在线评审、修改和版本管理。支持分屏对比、评论批注和版本历史回溯。",
+    tags: ["评审", "协作", "编辑器"],
+    author: "刘洋",
+    date: "2026-02-24",
+    userStory: "作为一个 产品经理，我希望 在平台内直接对AI生成的提案进行修改和批注，以便 和团队高效协作。",
+    acceptanceCriteria: [
+      "分屏对比：AI草稿 vs 修改版",
+      "支持段落级评论批注",
+      "版本历史可回溯和恢复",
+      "提案状态：草稿→待评审→已确认"
+    ],
+    aiResult: null,
+    docs: mkDocs()
+  },
+
+  // 6. Git 同步与版本管理模块
+  {
+    id: "REQ-105",
+    col: "confirm",
+    priority: "P1",
+    title: "Git 同步与版本管理模块",
+    desc: "实现 OpenSpec 提案与 Git 仓库的自动化同步。产品经理确认提案后系统自动生成 Git Commit，将文件提交到指定目录下，并可选创建 PR/MR。",
+    tags: ["Git", "DevOps", "集成"],
+    author: "陈刚",
+    date: "2026-02-24",
+    userStory: "作为一个 产品经理，我希望 确认提案后一键同步至Git仓库，以便 开发人员直接拉取最新设计文档。",
+    acceptanceCriteria: [
+      "支持GitHub/GitLab/Gitee三大平台",
+      "自动提交至openspec/changes/<name>/目录",
+      "可选创建PR/MR并回写链接",
+      "Git提交成功率≥99.5%"
+    ],
+    aiResult: {
+      score: 82,
+      completeness: 85,
+      logic: 84,
+      risk: 76,
+      summary: "需求整体清晰，Git集成方案可行。建议补充凭据安全管理方案和并发同步冲突策略。",
+      risks: ["Git凭据安全存储需专门方案", "多人同时同步可能产生冲突", "网络不稳定导致push失败"],
+      suggestions: ["引入Vault管理Git凭据", "实现同步任务排队机制", "增加push失败重试和告警"],
+      passed: true
+    },
+    docs: {
+      prd: null,
+      proposals: [
+        {
+          id: "git-sync",
+          name: "Git 同步机制设计",
+          proposal: null,
+          design: `# Design: Git 同步与版本管理模块
+
+## 1. 技术方案
+
+### 1.1 核心架构
+
+采用分层设计，将 Git 操作与业务逻辑解耦：
+
+\`\`\`
+┌─────────────────────────────────┐
+│   需求管理平台（UI层）       │
+└──────────┬──────────────────────┘
+           │
+           │ HTTP API
+           │
+┌──────────▼──────────────────────┐
+│   Git 同步服务（业务逻辑层）    │
+│   - 提案确认监听              │
+│   - 同步任务队列               │
+│   - 状态回写                  │
+└──────────┬──────────────────────┘
+           │
+           │ 调用
+           │
+┌──────────▼──────────────────────┐
+│   Git 适配器层                 │
+│   - GitHub API                │
+│   - GitLab API               │
+│   - Gitee API                │
+└───────────────────────────────────┘
+\`\`\`
+
+### 1.2 关键组件
+
+**SyncService**: 同步服务核心
+- 监听提案确认事件
+- 创建同步任务
+- 管理任务队列（避免并发冲突）
+- 回写 Git 状态到需求卡片
+
+**GitAdapter**: Git 操作抽象接口
+- createBranch(): 创建特性分支
+- commitFiles(): 提交文件到仓库
+- createPullRequest(): 创建 PR/MR
+- getStatus(): 获取提交/PR 状态
+
+**CredentialManager**: 凭据管理
+- 加密存储 Git Token
+- 支持多平台凭据
+- Token 过期提醒
+
+## 2. API 设计
+
+### 2.1 同步提案
+
+POST /api/proposals/:id/sync
+
+### 2.2 获取同步状态
+
+GET /api/proposals/:id/sync-status
+
+## 3. 数据模型
+
+### 3.1 git_configs 表
+- id, user_id, platform, repo_url, access_token_encrypted, default_branch
+
+### 3.2 git_sync_records 表
+- id, proposal_id, user_id, platform, repo_url, branch, commit_sha, pr_url, status
+
+## 4. 并发控制
+
+- 同一提案同一时间只允许一个同步任务
+- FIFO 队列，最多 10 个并发任务
+
+## 5. 安全性
+
+- Git Token 使用 AES-256 加密存储
+- 凭据仅对授权用户可见`,
+          spec: null,
+          tasks: `## 1. Setup
+- [ ] 1.1 创建 git_configs 数据表
+- [ ] 1.2 创建 git_sync_records 数据表
+- [ ] 1.3 安装依赖
+
+## 2. Backend
+- [ ] 2.1 实现 SyncService 类
+- [ ] 2.2 实现 GitAdapter 接口
+- [ ] 2.3 实现 CredentialManager
+- [ ] 2.4 实现同步 API 端点
+
+## 3. Frontend
+- [ ] 3.1 添加 Git 同步配置
+- [ ] 3.2 添加同步状态显示
+- [ ] 3.3 回写 PR 链接
+
+## 4. Testing
+- [ ] 4.1 单元测试
+- [ ] 4.2 集成测试`
+        }
+      ]
+    }
+  }
 ];
 
-/* ═══════════════════════════════ API ══════════════════════════════════════ */
-async function callClaude(prompt, maxTokens=1800) {
-  const res = await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:maxTokens,messages:[{role:"user",content:prompt}]}),
-  });
-  const data = await res.json();
-  return data.content?.map(b=>b.text||"").join("")||"";
+/* ═══════════════════════════════ API ══════════════════════════════════════
+ * 支持 Claude (Anthropic) 和 GLM-4 (Zhipu)
+ * 使用 AIClient 统一接口
+ * 模型选择: localStorage.getItem('ai_model_selected') || 'claude'
+ * localStorage 配置:
+ *   Claude: localStorage.setItem('ai_model_claude_key', 'your-key')
+ *   GLM: localStorage.setItem('ai_model_glm_key', 'your-key')
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+const CLAUDE_API_KEY = ""; // 👈 配置你的 Anthropic API Key
+const ZHIPU_API_KEY = "";  // 👈 配置你的 Zhipu GLM API Key
+
+function getSelectedModel() {
+  return localStorage.getItem('ai_model_selected') || 'claude';
+}
+
+async function callAI(prompt, maxTokens=1800) {
+  const model = getSelectedModel();
+  const client = new AIClient(model);
+  return await client.chat(prompt, maxTokens);
 }
 
 async function callAIReview(card) {
-  const text = await callClaude(`你是资深产品经理评审专家。请对以下需求评审，从完整性、逻辑性、风险三个维度打分（0-100）。
+  const text = await callAI(`你是资深产品经理评审专家。请对以下需求评审，从完整性、逻辑性、风险三个维度打分（0-100）。
 需求ID: ${card.id} | 标题: ${card.title} | 描述: ${card.desc} | 用户故事: ${card.userStory} | 验收标准: ${card.acceptanceCriteria.join("；")}
 严格按JSON返回：{"score":<0-100>,"completeness":<0-100>,"logic":<0-100>,"risk":<0-100>,"summary":"<2-3句>","risks":["<r1>","<r2>","<r3>"],"suggestions":["<s1>","<s2>","<s3>"],"passed":<bool,>=70为true>}`);
   return JSON.parse(text.replace(/```json|```/g,"").trim());
@@ -295,7 +562,7 @@ const DOC_PROMPTS = {
 
 async function callAIDoc(card, docType) {
   const prompt = DOC_PROMPTS[docType](card);
-  return await callClaude(prompt, 2000);
+  return await callAI(prompt, 2000);
 }
 
 /* ═══════════════════════════ MARKDOWN RENDERER ═════════════════════════════ */
