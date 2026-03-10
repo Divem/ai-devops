@@ -20,6 +20,17 @@ PM AI Platform 将需求管理从“收集 -> 评审 -> 设计 -> 文档 -> Git 
 - Git 集成：支持多仓库档案、应用-仓库多绑定、默认仓库兜底，并行提交与部分成功展示
 - OpenSpec：propose/apply/archive 全流程变更管理
 
+## AI 能力说明
+
+当前版本围绕“需求到文档到变更”的链路，已落地以下 AI 能力：
+
+- 需求评审智能打分：从完整性、逻辑性、风险三个维度输出结构化评审结果
+- 文档自动生成：支持一键生成 `PRD / SPEC / Proposal / Design / Tasks`（Markdown）
+- 对话澄清与补全：通过 Chatbot 多轮追问需求上下文，补齐关键信息
+- Prompt 模板变量注入：支持 `{{card.title}}`、`{{card.desc}}`、`{{card.criteria}}` 等变量
+- 多模型可切换：支持在配置中选择 Claude / GLM / ARK
+- 失败兜底回退：未配置 API Key 或请求失败时，提供可演示的回退结果
+
 ## 快速启动
 
 ```bash
@@ -74,6 +85,18 @@ npm run dev
 - Git 仓库配置：仓库档案（GitHub/GitLab）+ 应用绑定 + 默认仓库
 - SDD 框架配置：OpenSpec / 其他模板
 - AI Skill 配置：结构化 Skill 包管理（`SKILL.md` + `references/*` + `scripts/*`）
+
+### 内置 Skill（默认支持）
+
+- `review`：需求评审（评分 + 风险建议）
+- `prd`：PRD 生成
+- `spec`：SPEC 生成
+- `proposal`：Proposal 生成
+- `design`：Design 生成
+- `tasks`：Tasks 生成
+- `chatbot`：需求澄清与问答
+
+说明：以上 Skill 均可在项目配置中自定义 `SKILL.md`、参考文档与脚本，并按标准目录进行扩展。
 
 ### AI Skill 标准结构（示例）
 
