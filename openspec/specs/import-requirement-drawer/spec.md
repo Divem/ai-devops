@@ -26,6 +26,10 @@ The system SHALL display a drawer when user clicks "导入需求" option.
 - **WHEN** user clicks the close button or clicks outside the drawer
 - **THEN** the drawer SHALL close
 
+#### Scenario: Import drawer width
+- **WHEN** user opens the import requirement drawer on desktop
+- **THEN** the drawer width SHALL be 60% of viewport width
+
 ### Requirement: Import drawer tabs
 The import drawer SHALL have two tabs: "URL 导入" and "从列表选择".
 

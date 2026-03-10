@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>功能实现与 PRD 差异分析（详细版）</title>
+  <style>
+    :root { --bg:#fbf7ef; --card:#fff; --ink:#1e2630; --muted:#636b76; --line:#eadfce; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:"Noto Sans SC",sans-serif; }
+    .wrap { max-width:1120px; margin:28px auto 56px; padding:0 16px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:24px; margin-bottom:16px; }
+    h1 { margin:0 0 8px; font-size:30px; }
+    h2 { margin:0 0 10px; font-size:22px; }
+    h3 { margin:14px 0 8px; font-size:18px; }
+    p,li,td,th { line-height:1.7; }
+    .meta { color:var(--muted); }
+    table { width:100%; border-collapse:collapse; margin-top:8px; }
+    th,td { border:1px solid var(--line); text-align:left; padding:10px; vertical-align:top; }
+    th { background:#f8f3ea; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card">
+      <h1>功能实现与 PRD 差异分析（详细版）</h1>
+      <p class="meta">分析日期：2026-03-10 ｜ PRD 基线：md/PM_AI_Plagform_PRD.md ｜ 实现基线：pm-ai-app/src/PMPlatform.jsx + openspec/specs/</p>
+      <p>本次分析重点不只是“有/无功能”，还评估链路完整性、可追溯性、失败恢复能力和协作深度。结论是：主流程已稳定，关键缺口集中在外部系统深度集成和多人协作评审能力。</p>
+    </section>
+
+    <section class="card">
+      <h2>一、总体结论</h2>
+      <table>
+        <thead><tr><th>维度</th><th>结论</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>核心主流程</td><td>已实现</td><td>看板 -> 评审 -> 澄清 -> 文档生成链路可运行</td></tr>
+          <tr><td>澄清闭环</td><td>显著提升</td><td>Q/A 摘要可写入 Chatbot，后续生成可复用</td></tr>
+          <tr><td>Chatbot 稳定性</td><td>显著提升</td><td>乐观发送、thinking trace、fallback、重试齐备</td></tr>
+          <tr><td>Git 交付深度</td><td>部分实现</td><td>单文档提交可用，提案包级提交缺失</td></tr>
+          <tr><td>外部平台集成</td><td>未实现</td><td>Meego 真实同步链路未落地</td></tr>
+          <tr><td>协作评审能力</td><td>未实现</td><td>版本历史/批注/分屏对比待建设</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>二、逐模块对照</h2>
+
+      <h3>1) 需求看板</h3>
+      <table>
+        <thead><tr><th>PRD 要求</th><th>状态</th><th>差异说明</th></tr></thead>
+        <tbody>
+          <tr><td>多状态流转与卡片展示</td><td>已实现</td><td>长期稳定</td></tr>
+          <tr><td>多维筛选</td><td>已实现</td><td>已扩展到业务维度与角色维度</td></tr>
+          <tr><td>拖拽流转</td><td>部分</td><td>目前以操作按钮驱动为主</td></tr>
+          <tr><td>排序能力</td><td>未实现</td><td>仍缺优先级/负责人/状态排序</td></tr>
+          <tr><td>Meego 同步</td><td>未实现</td><td>暂无真实 API 集成</td></tr>
+        </tbody>
+      </table>
+
+      <h3>2) AI 澄清与评审</h3>
+      <table>
+        <thead><tr><th>PRD 要求</th><th>状态</th><th>差异说明</th></tr></thead>
+        <tbody>
+          <tr><td>评审前完整性检测</td><td>已实现</td><td>字段缺失可弹框补充</td></tr>
+          <tr><td>生成前澄清问答</td><td>已实现</td><td>PRD/SPEC 前可执行问答流程</td></tr>
+          <tr><td>澄清记录沉淀</td><td>已实现</td><td>Q/A 摘要入 Chatbot 历史</td></tr>
+          <tr><td>结构化自动回填</td><td>部分</td><td>有摘要注入，但自动映射规则不完整</td></tr>
+        </tbody>
+      </table>
+
+      <h3>3) 文档生成与协作</h3>
+      <table>
+        <thead><tr><th>PRD 要求</th><th>状态</th><th>差异说明</th></tr></thead>
+        <tbody>
+          <tr><td>PRD/Proposal/Design/Spec/Tasks 生成</td><td>已实现</td><td>主链路可用</td></tr>
+          <tr><td>在线编辑与预览</td><td>已实现</td><td>编辑/预览切换可用</td></tr>
+          <tr><td>版本历史与 diff</td><td>未实现</td><td>缺乏协作级审阅能力</td></tr>
+          <tr><td>段落级批注</td><td>未实现</td><td>仍需产品化设计</td></tr>
+        </tbody>
+      </table>
+
+      <h3>4) Git 与交付</h3>
+      <table>
+        <thead><tr><th>PRD 要求</th><th>状态</th><th>差异说明</th></tr></thead>
+        <tbody>
+          <tr><td>Git 配置与单文档提交</td><td>已实现</td><td>可提交并展示状态</td></tr>
+          <tr><td>提案包一次性提交</td><td>未实现</td><td>当前仍为逐文档</td></tr>
+          <tr><td>PR/MR 自动创建</td><td>未实现</td><td>可作为后续增强</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>三、超出 PRD 的新增价值</h2>
+      <ul>
+        <li>顶部导航模型快捷切换（评审与生成过程更顺滑）。</li>
+        <li>AI 设计页三栏拖拽改宽 + 本地持久化。</li>
+        <li>文档树分组维度（规模化需求场景检索效率提升）。</li>
+        <li>Chatbot thinking trace 与会话内 fallback（演示可信度提升）。</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>四、优先补齐建议</h2>
+      <table>
+        <thead><tr><th>优先级</th><th>缺口</th><th>建议动作</th><th>目标收益</th></tr></thead>
+        <tbody>
+          <tr><td>P0</td><td>Meego 最小可用同步</td><td>先拉取与映射，再补回写</td><td>接入真实业务源头数据</td></tr>
+          <tr><td>P0</td><td>提案包级 Git 提交</td><td>聚合 proposal/design/spec/tasks 一键提交</td><td>降低交付摩擦</td></tr>
+          <tr><td>P1</td><td>澄清摘要结构化回填</td><td>建立字段映射规则引擎</td><td>提升需求质量一致性</td></tr>
+          <tr><td>P1</td><td>版本快照 + diff</td><td>先快照后对比</td><td>增强多人审阅效率</td></tr>
+        </tbody>
+      </table>
+      <p class="meta">分析版本：v2026.03.10-detailed</p>
+    </section>
+  </div>
+</body>
+</html>

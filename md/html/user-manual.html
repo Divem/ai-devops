@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>新用户手册（详细版）- Agentic·DevOps</title>
+  <style>
+    :root { --bg:#f4f8fb; --card:#fff; --ink:#17212b; --muted:#5f6b76; --line:#dce7ef; --accent:#0d7a4e; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:"Noto Sans SC",sans-serif; }
+    .wrap { max-width:1100px; margin:28px auto 56px; padding:0 16px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:24px; margin-bottom:16px; }
+    h1 { margin:0 0 8px; font-size:30px; }
+    h2 { margin:0 0 10px; font-size:22px; }
+    h3 { margin:14px 0 8px; font-size:18px; }
+    p,li,td,th { line-height:1.7; }
+    .meta { color:var(--muted); }
+    .phase { border-left:4px solid var(--accent); background:#f6fcf9; padding:10px 12px; border-radius:8px; margin:10px 0; }
+    code { background:#eef3f8; border-radius:6px; padding:2px 6px; }
+    table { width:100%; border-collapse:collapse; margin-top:8px; }
+    th,td { border:1px solid var(--line); text-align:left; padding:10px; vertical-align:top; }
+    th { background:#f8fbfd; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card">
+      <h1>Agentic·DevOps 新用户手册（详细版）</h1>
+      <p class="meta">版本：2026-03-10 ｜ 面向角色：产品经理 / 研发负责人 / 项目经理 / 售前演示</p>
+      <p>本手册用于快速完成一场可复用的标准演示，覆盖“需求评审 - 澄清补全 - 文档生成 - 交付衔接 - 数据复盘”全流程，建议时长 20~30 分钟。</p>
+    </section>
+
+    <section class="card">
+      <h2>一、演示前准备（5 分钟）</h2>
+      <h3>1) 启动方式</h3>
+      <ul>
+        <li>在项目根目录执行：<code>python3 -m http.server 8000</code></li>
+        <li>推荐入口：<code>http://localhost:8000/preview-sdd2.html</code></li>
+        <li>备用入口：<code>http://localhost:8000/index.html</code></li>
+      </ul>
+
+      <h3>2) 数据准备建议</h3>
+      <ul>
+        <li>3~5 条需求卡片，覆盖 P0~P3。</li>
+        <li>至少 1 条信息不完整需求，用于展示澄清弹框价值。</li>
+        <li>至少 1 条已生成文档需求，用于展示文档树分组与详情联动。</li>
+      </ul>
+
+      <h3>3) 模型配置建议</h3>
+      <ul>
+        <li>准备 Claude/GLM/ARK/Custom 任一可用 Key。</li>
+        <li>演示时优先用顶部模型下拉切换，减少页面跳转成本。</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>二、标准演示路线（20~30 分钟）</h2>
+      <div class="phase"><b>阶段 A（2 分钟）开场与价值：</b>先讲“为什么要统一链路”，再展示顶栏、看板、关键统计与模型切换入口。</div>
+      <div class="phase"><b>阶段 B（5 分钟）需求评审：</b>打开一条需求，触发 AI 评审，演示信息不足时的澄清问卷与补全。</div>
+      <div class="phase"><b>阶段 C（8 分钟）文档生成：</b>进入 AI 设计页，展示 PRD/SPEC 生成前澄清，提交后查看 Chatbot 中 Q/A 摘要，再继续生成文档。</div>
+      <div class="phase"><b>阶段 D（6 分钟）Chatbot 深度：</b>输入 Markdown，切换预览，发送后展示思考轨迹与失败兜底/重试。</div>
+      <div class="phase"><b>阶段 E（4 分钟）效率收口：</b>展示三栏拖拽、文档树分组和数据概览，完成闭环总结。</div>
+    </section>
+
+    <section class="card">
+      <h2>三、推荐讲解话术</h2>
+      <table>
+        <thead><tr><th>场景</th><th>建议话术</th><th>讲解重点</th></tr></thead>
+        <tbody>
+          <tr><td>开场</td><td>“我们把需求到文档再到交付放进一条链路，减少上下文丢失。”</td><td>统一平台价值</td></tr>
+          <tr><td>评审</td><td>“AI 先把问题结构化暴露，评审会只讨论关键决策。”</td><td>评审效率与质量</td></tr>
+          <tr><td>澄清</td><td>“澄清问答会沉淀到会话里，后续不用重复解释背景。”</td><td>可追溯上下文</td></tr>
+          <tr><td>生成</td><td>“从空白文档写作，升级为 AI 草拟 + 人工收敛。”</td><td>产出速度与一致性</td></tr>
+          <tr><td>收口</td><td>“看板推进节奏，AI 保证质量，数据沉淀复盘。”</td><td>闭环能力</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>四、常见问题处理</h2>
+      <h3>Q1：AI 超时或网络不稳</h3>
+      <ul>
+        <li>先展示已有评审结果和已有文档，再补实时调用。</li>
+        <li>用 Chatbot fallback 演示“失败不阻断流程”。</li>
+      </ul>
+
+      <h3>Q2：模型切换后“体感不明显”</h3>
+      <ul>
+        <li>说明模型切换影响回复风格、耗时、轨迹元信息。</li>
+        <li>结合思考轨迹中模型标识进行说明。</li>
+      </ul>
+
+      <h3>Q3：为什么强调澄清写入 Chatbot</h3>
+      <ul>
+        <li>因为这是“后续可复用上下文”的关键，不是一次性弹框。</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>五、演示成功 Checklist</h2>
+      <ul>
+        <li>已完成至少 1 次 AI 评审并展示评分/建议。</li>
+        <li>已完成 1 次澄清问答提交并在 Chatbot 中可见。</li>
+        <li>已生成至少 2 类文档（建议 PRD + Tasks）。</li>
+        <li>已展示 Markdown 预览、思考轨迹与失败兜底。</li>
+        <li>已展示三栏拖拽与文档树分组。</li>
+        <li>听众可复述“平台价值 + 使用路径 + 后续动作”。</li>
+      </ul>
+      <p class="meta">手册版本：v2026.03.10-detailed</p>
+    </section>
+  </div>
+</body>
+</html>

@@ -16,7 +16,15 @@ TBD - created by archiving change review-drawer-raw-req-tabs. Update Purpose aft
 - **THEN** 系统 SHALL 退出编辑态，内容恢复为编辑前的 rawRequirement，不更新卡片数据
 
 ### Requirement: 同步原始需求到 Meego
-「原始需求」Tab SHALL 提供"同步到 Meego"按钮，将当前 `rawRequirement` 内容通过配置的 Meego API 端点推送更新。
+「原始需求」Tab SHALL 提供"同步到 Meego"按钮，将当前 `rawRequirement` 内容通过配置的 Meego API 端点推送更新。该按钮 SHALL 与"✎ 编辑"按钮在同一操作区并列展示（非编辑态）。
+
+#### Scenario: 非编辑态操作区展示同步按钮
+- **WHEN** 用户处于「原始需求」Tab 且未进入编辑态
+- **THEN** 系统 SHALL 在“原始需求（Meego）”标题行右侧与“✎ 编辑”并列展示“同步到 Meego”按钮
+
+#### Scenario: 编辑态隐藏同步按钮
+- **WHEN** 用户进入原始需求编辑态
+- **THEN** 系统 SHALL 隐藏“同步到 Meego”按钮，仅保留编辑态相关操作
 
 #### Scenario: Meego 已配置时触发同步
 - **WHEN** `projectConfig.meego.apiUrl` 和 `projectConfig.meego.token` 均已配置

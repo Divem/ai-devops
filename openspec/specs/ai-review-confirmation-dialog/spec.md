@@ -53,11 +53,22 @@
 - **THEN** 显示错误提示，阻止提交
 
 ### Requirement: 需求信息更新
-系统 SHALL 在用户完成信息补充后，自动更新需求的相关字段。
+系统 SHALL 在用户完成信息补充后，自动更新需求的相关字段，并将问答摘要写入 chatbot 历史记录。
 
 #### Scenario: 成功更新需求
 - **WHEN** 用户完成所有问题并点击"确认补充"
 - **THEN** 系统更新需求对象中的对应字段，关闭面板，触发 AI 评审
+
+#### Scenario: 成功写入问答摘要且顺序内容保持
+- **WHEN** 用户完成所有问题并通过校验后点击"确认补充"
+- **THEN** 系统 SHALL 将本次澄清问答生成一条 `clarification_summary` 消息写入当前需求的 chatbot `chatHistory`
+- **AND** 新消息 SHALL 追加在原有历史末尾，不改变既有消息顺序
+- **AND** 写入内容 SHALL 保留每个问题与回答的原始对应关系与文本内容
+
+#### Scenario: 校验失败时不写入聊天历史
+- **WHEN** 用户点击"确认补充"但存在必填项为空或校验未通过
+- **THEN** 系统 SHALL 阻止提交并显示错误提示
+- **AND** 系统 SHALL NOT 向 chatbot `chatHistory` 写入任何 `clarification_summary` 消息
 
 ### Requirement: 评审报告生成
 系统 SHALL 在信息完善后，调用 AI 评审接口生成评审报告。

@@ -40,9 +40,57 @@ DocTreeSidebar SHALL 在顶部标题行右侧渲染一组筛选 chip，供用户
 - **WHEN** 用户激活"过滤已Lock"chip
 - **THEN** col 为 approved 或 rejected 的需求卡片从文档树中隐藏
 
+### Requirement: 隐藏提案筛选条件
+DocTreeSidebar SHALL 提供"隐藏提案"筛选 chip；激活后，文档树中所有 OpenSpec 提案相关文档节点 MUST 被隐藏。
+
+#### Scenario: 默认不隐藏提案
+- **WHEN** 用户首次进入 AI 设计页面且未激活"隐藏提案"
+- **THEN** 文档树继续展示原始需求、PRD 与提案相关文档节点
+
+#### Scenario: 激活隐藏提案
+- **WHEN** 用户点击并激活"隐藏提案"chip
+- **THEN** 文档树中提案目录（多提案文件夹）与提案子文档项（Proposal、Design、Delta Spec、Tasks）全部不渲染
+- **AND** 原始需求与 PRD 文档节点继续可见
+
+#### Scenario: 取消隐藏提案
+- **WHEN** 用户再次点击已激活的"隐藏提案"chip
+- **THEN** 文档树恢复渲染全部提案相关节点
+
+### Requirement: 隐藏提案与其他筛选叠加
+"隐藏提案"筛选 SHALL 与"仅本需求""过滤已PR""过滤已Lock"等已存在筛选按 AND 逻辑叠加生效。
+
+#### Scenario: 与仅本需求叠加
+- **WHEN** 用户同时激活"仅本需求"和"隐藏提案"
+- **THEN** 文档树仅显示当前需求卡片下的非提案文档节点
+
+#### Scenario: 与状态过滤叠加
+- **WHEN** 用户同时激活"过滤已Lock"和"隐藏提案"
+- **THEN** 文档树仅展示未被状态过滤且为非提案类型的文档节点
+
+#### Scenario: 分组模式下叠加生效
+- **WHEN** 用户启用任意分组并激活"隐藏提案"
+- **THEN** 系统先计算可见需求集合与可见文档节点，再执行分组渲染
+- **AND** 不渲染仅包含提案节点而被过滤为空的分组
+
 ### Requirement: 多筛选叠加
-多个筛选 chip SHALL 可同时激活，过滤条件取交集（AND 逻辑）。
+多个筛选 chip SHALL 可同时激活，过滤条件取交集（AND 逻辑），并在启用分组时先完成筛选再执行分组渲染。
 
 #### Scenario: 同时激活多个筛选
 - **WHEN** 用户同时激活"仅本需求"和"过滤已Lock"
 - **THEN** 只显示 focusCardId 对应且非终态的需求卡片
+
+#### Scenario: 分组模式下筛选优先
+- **WHEN** 用户启用任意分组维度且激活一个或多个筛选 chip
+- **THEN** 系统 SHALL 先按筛选条件计算可见需求集合
+- **AND** 仅对该可见需求集合执行分组并渲染
+
+### Requirement: 分组模式下不渲染空分组
+在分组模式中，文档库 SHALL 仅渲染至少包含 1 条可见需求的分组。
+
+#### Scenario: 分组被筛选清空
+- **WHEN** 某分组内全部需求被筛选条件过滤
+- **THEN** 该分组 SHALL 不在文档树中渲染
+
+#### Scenario: 分组保留可见需求
+- **WHEN** 某分组仍有至少 1 条需求满足筛选条件
+- **THEN** 该分组 SHALL 继续显示并包含满足条件的需求卡片

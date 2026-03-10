@@ -1,5 +1,18 @@
 ## MODIFIED Requirements
 
+### Requirement: DocEditor 头部展示需求上下文
+DocEditor 头部 SHALL 在文档类型区域右侧展示当前需求上下文，采用“需求编号 + 副标题”单行结构，其中副标题位于需求编号右侧。
+
+#### Scenario: 展示需求编号与副标题
+- **WHEN** 用户在 AI 设计页打开任意需求文档
+- **THEN** 头部上下文 SHALL 显示当前 `card.id`
+- **THEN** 头部上下文 SHALL 在 `card.id` 右侧显示副标题（默认使用 `card.title`）
+
+#### Scenario: 副标题过长时处理
+- **WHEN** 副标题超出头部可用宽度
+- **THEN** 副标题 SHALL 保持单行并以省略号截断
+- **THEN** 系统 SHALL 保证头部操作按钮区域不被挤压导致错位
+
 ### Requirement: DocEditor header action buttons
 DocEditor 头部操作区 SHALL 在文档内容存在且非编辑模式时展示操作按钮。当文档类型为 `prd` 时，SHALL 额外展示"生成提案/更新提案"按钮。
 
@@ -41,3 +54,14 @@ DocEditor 头部操作区 SHALL 在文档内容存在且非编辑模式时展示
 - **WHEN** 用户查看“原始需求”文档，且当前卡片无原始需求正文
 - **THEN** 系统 SHALL 展示来自 `PM_AI_Plagform_PRD` 摘录的示例基础信息与正文
 - **THEN** 系统 SHALL 显示“示例内容（来自 PRD 摘录）”标识
+
+### Requirement: 编辑模式保留当前文档内容
+系统 SHALL 在用户点击编辑时，以当前选中文档的可见内容初始化编辑区文本，避免进入编辑后内容被清空。
+
+#### Scenario: 点击编辑后保留文本
+- **WHEN** 用户在非空文档中点击“编辑”
+- **THEN** 编辑区 SHALL 显示与当前文档一致的文本内容
+
+#### Scenario: 空内容文档进入编辑
+- **WHEN** 当前文档本身为空内容且用户点击“编辑”
+- **THEN** 系统 SHALL 保持空编辑态且不覆盖其他已有文档内容

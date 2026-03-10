@@ -1,158 +1,89 @@
-# 工作汇报
+# 工作报告（产品演进版）
 
-> Agentic·DevOps 产研智能工作台开发工作记录
+> Agentic·DevOps 产研智能工作台阶段性进展更新
 
-**日期**: 2026-03-06  
-**项目**: agentic_coding_platform  
-**参与者**: 达尔文 (Dawin) + Claude Code (opencode)
-
----
-
-## 今日工作总结
-
-### 一、新增 OpenSpec 变更提案
-
-累计共创建 **9** 个变更提案（其中 7 个已完成，2 个进行中）：
-
-| # | 变更名称 | 描述 | 状态 |
-|---|----------|------|------|
-| 1 | `add-import-requirement-drawer` | 看板页面添加导入需求抽屉 | ✅ 已完成 |
-| 2 | `add-requirement-link-to-sdd2-subtitle` | SDD2 副标题需求名称支持飞书链接跳转 | ✅ 已完成 |
-| 3 | `add-sample-data-to-sdd2` | 为 SDD2 设计工作台添加示例数据 | ✅ 已完成 |
-| 4 | `add-settings-dropdown-to-kanban` | 看板页面添加设置下拉菜单 | ✅ 已完成 |
-| 5 | `add-zhipu-glm-model` | 添加智谱 GLM 模型支持 | ✅ 已完成 |
-| 6 | `rename-product-to-agentic-devops` | 产品名称改为 Agentic·DevOps 产研智能工作台 | ✅ 已完成 |
-| 7 | `sdd-add-spec-page-example` | SDD 添加 spec 页面示例 | ✅ 已完成 |
-| 8 | `kanban-multi-select-filter` | 看板多选筛选器（空间 + 迭代级联过滤） | 🔄 进行中 |
-| 9 | `doc-tree-proposal-folders` | 文档树支持多提案文件夹结构 | 🔄 进行中 |
-
-### 二、新增/修改文件统计
-
-#### 新增文件
-
-```
-openspec/
-├── FEATURES.md                          # 特性清单文档
-├── specs/                                # 新增规格定义
-└── changes/
-    ├── add-import-requirement-drawer/    # 导入需求抽屉
-    │   ├── proposal.md
-    │   ├── design.md
-    │   ├── specs/
-    │   └── tasks.md
-    ├── add-requirement-link-to-sdd2-subtitle/  # 需求链接跳转
-    │   ├── proposal.md
-    │   ├── design.md
-    │   ├── specs/requirement-link.md
-    │   └── tasks.md
-    ├── add-sample-data-to-sdd2/
-    ├── add-settings-dropdown-to-kanban/
-    ├── add-zhipu-glm-model/
-    │   ├── proposal.md
-    │   ├── design.md
-    │   ├── specs/zhipu-glm-integration/spec.md
-    │   └── tasks.md
-    └── rename-product-to-agentic-devops/
-        ├── proposal.md
-        ├── design.md
-        ├── specs/branding-upgrade.md
-        └── tasks.md
-```
-
-#### 修改文件
-
-| 文件 | 变更说明 |
-|------|----------|
-| `index.html` | 更新页面标题 |
-| `pm-ai-app/src/PMPlatform.jsx` | 主应用修改 |
-| `pm-ai-app/src/main.jsx` | 主应用入口 |
-| `pm-ai-platform_sdd.jsx` | SDD 设计工作台 |
-| `pm-ai-platform_sdd2.jsx` | SDD2 设计工作台 |
-| `pm-ai-platform_vibe.jsx` | Vibe 设计工作台 |
-| `preview-apps/sdd2-app/src/main.jsx` | SDD2 预览应用 |
-| `preview-apps/vibe-app/src/PMPlatform.jsx` | Vibe 预览应用 |
-| `preview-apps/vibe-app/src/main.jsx` | Vibe 预览入口 |
-| `preview-sdd2.html` | SDD2 预览页面 |
-
-### 三、变更详情
-
-#### 1. 产品品牌升级
-**变更**: `rename-product-to-agentic-devops`  
-将产品名称从 **"PM·AI 产品智能工作台"** 更改为 **"Agentic·DevOps 产研智能工作台"**
-
-涉及文件:
-- pm-ai-app/src/PMPlatform.jsx
-- index.html, preview-sdd2.html, preview-apps/index.html
-- README.md, CLAUDE.md
-
-#### 2. SDD2 需求链接功能
-**变更**: `add-requirement-link-to-sdd2-subtitle`  
-SDD2 设计工作台副标题中的需求名称支持点击跳转飞书文档
-
-功能点:
-- 新增 `feishuUrl` 可选字段
-- 有链接时显示蓝色带下划线，点击新标签页打开
-- 无链接时保持普通文字显示
-
-#### 3. 智谱 GLM 模型集成
-**变更**: `add-zhipu-glm-model`  
-添加智谱 GLM 模型支持到 AI 客户端
-
-#### 4. 导入需求抽屉
-**变更**: `add-import-requirement-drawer`  
-看板页面添加导入需求抽屉，支持:
-- URL 导入
-- 从空间/迭代/需求列表中选择导入
-
-### 四、工作流程
-
-本日使用 OpenSpec 工具进行规范化变更管理:
-
-```
-openspec new change "<name>"           # 创建新变更
-openspec status --change "<name>"      # 查看状态
-openspec instructions <artifact>       # 获取Artifact创建指引
-# 创建 proposal.md → design.md → specs/*.md → tasks.md
-openspec status --change "<name>"      # 确认完成
-```
-
-### 五、进行中提案详情
-
-#### 8. 看板多选筛选器
-**变更**: `kanban-multi-select-filter`
-为需求看板新增空间 + 迭代级联多选筛选功能，解决卡片数量增多后难以定位的问题。
-
-功能点:
-- 新增 `MultiSelectFilter` 组件，支持空间（Space）多选
-- 迭代（Iteration）多选，且与空间级联：选择空间后迭代下拉仅显示该空间迭代
-- 已选条件以标签形式展示，支持单个 × 关闭或一键清除全部
-- 筛选状态持久化到 `localStorage`，刷新后恢复
-- 无筛选结果时显示友好空状态提示
-
-任务进度: 0/10 已完成（共 7 大组，40+ 子任务）
-
-#### 9. 文档树多提案文件夹结构
-**变更**: `doc-tree-proposal-folders`
-需求详情页文档树支持将一个 PRD 拆解为多个 OpenSpec 提案并以文件夹形式分组显示。
-
-功能点:
-- 数据结构从 `{prd, spec, proposal, design, tasks}` 升级为 `{prd, proposals: [...]}`
-- 每个提案以独立文件夹 📁/📂 展示，支持展开/收起
-- `normalizeDocs()` 兼容旧数据结构，自动迁移为新结构
-- 新增 `ProposalFolder` 子组件，每个提案内包含 4 个文档项（Proposal、Design、Delta Spec、Tasks）
-- 单提案场景自动降级为平铺显示，向后兼容
-
-任务进度: 0/7 已完成（共 7 大组，23 子任务）
+**更新日期**: 2026-03-10  
+**覆盖周期**: 2026-03-08 ~ 2026-03-10  
+**代码基线**: `pm-ai-app/src/PMPlatform.jsx`（`sdd2` 分支）
 
 ---
 
-## 技术栈
+## 一、本期结论
 
-- **前端框架**: React 19 + Vite
-- **AI 集成**: Anthropic Claude API, 智谱 GLM
-- **变更管理**: OpenSpec
-- **代码规范**: ESLint 9.x
+本阶段核心目标从“功能可用”转向“流程可演示、交互可追溯、上下文更连续”。
+
+重点结果：
+
+- AI 设计页顶部信息收敛：总需求/已通过/含文档与模型切换统一进顶栏。
+- PRD/SPEC 生成前澄清流程打通：澄清问答可写入 Chatbot，并参与后续生成上下文。
+- Chatbot 体验升级：支持 Markdown 预览、乐观发送、思考轨迹折叠展示、失败示例兜底。
+- 三栏可调布局增强：文档树与右侧面板支持拖拽改宽并持久化。
+- 文档树分组能力增强：支持按空间/子系统/应用/迭代/优先级/状态/角色分组查看。
 
 ---
 
-*汇报生成时间: 2026-03-06*
+## 二、本期主要演进（按主题）
+
+### 1) AI 设计页信息架构与效率
+
+- 顶部导航新增“模型切换下拉框”，支持快速切换并持久化。
+- 原本独占一行的“总需求/已通过/含文档”迁移至顶栏同排展示，释放编辑区纵向空间。
+- 文档编辑头部增加“需求编号 + 副标题”并排展示，降低上下文识别成本。
+
+### 2) 澄清流程闭环
+
+- 新增 PRD/SPEC 生成前澄清对话框（选择题+填空题），按缺口引导补充。
+- 澄清提交后自动生成 Q/A 摘要并写入 Chatbot 历史，形成可追溯证据链。
+- 演示路径（功能演示弹框）与真实路径对齐：提交后同样写入 Chatbot，避免链路割裂。
+
+### 3) Chatbot 交互质量
+
+- 输入区新增“编辑/预览”双模式，发送前可预览 Markdown 渲染结果。
+- 发送链路改为乐观更新：用户消息与思考占位即时入会话，避免“没发出去”的感知。
+- 引入思考轨迹（thinking trace）折叠面板，支持查看 Skill 调用摘要与阶段结果。
+- AI 失败时自动落示例回复并显式标识，支持重试入口，保障演示连续性。
+
+### 4) 可操作性与可读性
+
+- AI 设计页三栏布局支持左右拖拽改宽，中间编辑区自适应。
+- 宽度值写入 localStorage，重进页面恢复上次布局。
+- 文档树支持多维分组及组级折叠，提升需求规模增大后的定位效率。
+
+---
+
+## 三、与上一阶段相比的可见改进
+
+| 维度 | 上一阶段 | 当前阶段 |
+|---|---|---|
+| 模型切换 | 以配置页为主 | 顶栏快速切换 + 配置页并存 |
+| 澄清记录 | 主要体现在字段回填 | Q/A 摘要入 Chatbot，可追溯 |
+| Chatbot 发送反馈 | 易出现“发送不确定” | 乐观更新 + 状态可见 |
+| 失败处理 | 依赖 Toast 提示 | 会话内可见兜底 + 重试 |
+| 页面布局 | 固定三栏 | 可拖拽 + 持久化 |
+| 文档树导航 | 以平铺为主 | 分组维度 + 组计数/折叠 |
+
+---
+
+## 四、当前仍需补齐项
+
+- Meego 实时同步与状态回写（目前仍以样例/前端态为主）。
+- 提案评审协作深水区能力（版本历史、段落批注、分屏对比）。
+- 整体提案包一次性 Git 提交与 PR/MR 自动创建。
+
+---
+
+## 五、下一阶段建议（P0/P1）
+
+### P0
+
+- 打通“澄清结果 -> 结构化字段”自动回填链路（不仅写入聊天历史）。
+- 完成提案包级提交能力（proposal/design/spec/tasks 一次性提交）。
+
+### P1
+
+- 引入提案版本快照和基础 diff 能力。
+- 为 Chatbot 思考轨迹增加可配置展示级别（演示模式/专业模式）。
+
+---
+
+*报告版本: v2026.03.10*
