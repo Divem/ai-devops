@@ -2226,6 +2226,72 @@ const AI_SKILLS = {
   },
 };
 
+const CHATBOT_DEFAULT_TOOL_PRESETS = [
+  {
+    id: 'pm-requirement-review',
+    type: 'skill',
+    title: '需求评审',
+    description: '从完整性、逻辑性、风险三个维度评分并给出建议。',
+    icon: '🔍',
+    skillId: 'review',
+    keywords: ['评审', '评分', 'review'],
+  },
+  {
+    id: 'pm-risk-check',
+    type: 'skill',
+    title: '风险检查',
+    description: '识别业务、流程、技术与协作风险并给出缓解建议。',
+    icon: '⚠️',
+    skillId: 'chatbot',
+    keywords: ['风险', 'risk', '隐患'],
+  },
+  {
+    id: 'pm-related-requirements',
+    type: 'skill',
+    title: '相关需求',
+    description: '给出相似需求检索方向与复用建议。',
+    icon: '🔗',
+    skillId: 'chatbot',
+    keywords: ['相关', '相似', '需求'],
+  },
+  {
+    id: 'pm-feature-summary',
+    type: 'skill',
+    title: '总结功能点',
+    description: '提炼核心功能点、边界与验收关注点。',
+    icon: '🧩',
+    skillId: 'chatbot',
+    keywords: ['功能点', '总结', 'summary'],
+  },
+  {
+    id: 'pm-completeness-check',
+    type: 'skill',
+    title: '完备性检查',
+    description: '检查需求缺失项并生成补充建议。',
+    icon: '✅',
+    skillId: 'chatbot',
+    keywords: ['完备', '缺失', 'checklist'],
+  },
+  {
+    id: 'cmd-help',
+    type: 'command',
+    title: 'help',
+    description: '查看可用技能与推荐使用方式。',
+    icon: '📘',
+    skillId: 'chatbot',
+    keywords: ['help', '命令', '帮助'],
+  },
+  {
+    id: 'cmd-quick-brief',
+    type: 'command',
+    title: 'quick-brief',
+    description: '快速输出一页式需求摘要。',
+    icon: '⚡',
+    skillId: 'chatbot',
+    keywords: ['brief', '摘要', '一页'],
+  },
+];
+
 const SKILL_STANDARD_FILE_KEYS = [
   'SKILL.md',
   'references/req-clarification.md',
@@ -2430,6 +2496,88 @@ function getSkillTemplateSource(skillId) {
   }
   const hasCustom = Boolean(String(customMarkdown || '').trim());
   return hasCustom ? 'custom' : 'default';
+}
+
+function getChatbotToolRegistry() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('ai_skill_prompts') || '{}'); } catch {}
+  const normalizedSkills = normalizeSkillConfig(saved).normalized;
+  return CHATBOT_DEFAULT_TOOL_PRESETS.map((tool) => {
+    const skillId = tool.skillId || 'chatbot';
+    const promptTemplate = getSkillPromptTemplate(normalizedSkills, skillId);
+    return {
+      ...tool,
+      promptTemplate,
+      templateSource: getSkillTemplateSource(skillId),
+      skillName: AI_SKILLS[skillId]?.name || skillId,
+    };
+  });
+}
+
+function buildToolExecutionMessage(tool, query = '') {
+  const normalizedQuery = String(query || '').trim();
+  const extra = normalizedQuery ? `\n\n用户补充关注点：${normalizedQuery}` : '';
+  if (tool.id === 'pm-requirement-review') {
+    return `请执行「需求评审」，并严格输出 JSON（不要代码块）：{"score":<0-100>,"completeness":<0-100>,"logic":<0-100>,"risk":<0-100>,"summary":"<2-3句>","risks":["<r1>","<r2>","<r3>"],"suggestions":["<s1>","<s2>","<s3>"]}${extra}`;
+  }
+  if (tool.id === 'pm-risk-check') {
+    return `请执行「风险检查」。按以下结构输出：\n## 风险清单\n- [高/中/低] 风险描述\n## 缓解建议\n- 对应建议\n## 需确认问题\n- 关键待确认项${extra}`;
+  }
+  if (tool.id === 'pm-related-requirements') {
+    return `请执行「相关需求」分析。输出：\n## 相似需求线索\n- 线索关键词\n## 可复用方案\n- 可复用做法\n## 与当前需求差异\n- 差异说明${extra}`;
+  }
+  if (tool.id === 'pm-feature-summary') {
+    return `请执行「总结功能点」。输出：\n## 核心功能点\n- 功能点\n## 边界与非目标\n- 边界说明\n## 验收关注点\n- 关注点${extra}`;
+  }
+  if (tool.id === 'pm-completeness-check') {
+    return `请执行「完备性检查」。输出：\n## 缺失项\n- 缺失项\n## 补充建议\n- 建议\n## 优先补齐顺序\n- P0/P1/P2${extra}`;
+  }
+  if (tool.id === 'cmd-help') {
+    return `请列出当前可用的产品经理技能，并给出每个技能的适用场景与一句话使用示例。`;
+  }
+  if (tool.id === 'cmd-quick-brief') {
+    return `请输出一页式需求摘要，包含：背景目标、核心功能、风险、验收标准、下一步行动。`;
+  }
+  return `请执行「${tool.title}」并输出结构化结果。${extra}`;
+}
+
+function extractJsonObject(text) {
+  const source = String(text || '').trim();
+  if (!source) return null;
+  try { return JSON.parse(source); } catch {}
+  const fenced = source.match(/```json\s*([\s\S]*?)```/i);
+  if (fenced?.[1]) {
+    try { return JSON.parse(fenced[1].trim()); } catch {}
+  }
+  const start = source.indexOf('{');
+  const end = source.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    try { return JSON.parse(source.slice(start, end + 1)); } catch {}
+  }
+  return null;
+}
+
+function extractBulletLines(text, headingPattern) {
+  const source = String(text || '');
+  if (!source.trim()) return [];
+  const lines = source.split('\n');
+  const matchesHeading = (line) => headingPattern.test(line.trim());
+  let inSection = false;
+  const result = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (/^#{1,6}\s+/.test(trimmed)) {
+      inSection = matchesHeading(trimmed);
+      continue;
+    }
+    if (!inSection) continue;
+    if (/^-\s+/.test(trimmed)) {
+      result.push(trimmed.replace(/^-\s+/, ''));
+    } else if (trimmed && !/^>/.test(trimmed)) {
+      result.push(trimmed);
+    }
+  }
+  return result;
 }
 
 function buildChatMessageId(prefix = 'msg') {
@@ -4443,6 +4591,13 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
     return safeValue || DOC_TREE_GROUP_UNASSIGNED;
   };
 
+  const handleKeyActivate = (event, action) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      action();
+    }
+  };
+
   // 计算 visibleCards（AND 逻辑）
   const visibleCards = useMemo(() => cards.filter(card => {
     if (filters.focus && focusCardId && card.id !== focusCardId) return false;
@@ -4513,29 +4668,35 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
   };
 
   const TreeItem = ({ label, icon, active, onClick, indent = 0, hasDoc, isCommitted }) => (
-    <div onClick={onClick}
-      style={{display:"flex",alignItems:"center",gap:8,padding:`6px ${12 + indent * 16}px`,cursor:"pointer",background:active ? C.sbActive : "transparent",borderRadius:4,margin:"1px 4px",transition:"background 0.15s",userSelect:"none"}}
-      onMouseEnter={e => { if(!active) e.currentTarget.style.background = C.sbHover; }}
-      onMouseLeave={e => { if(!active) e.currentTarget.style.background = "transparent"; }}>
+    <button
+      type="button"
+      className="doc-tree-action"
+      onClick={onClick}
+      onKeyDown={(event) => handleKeyActivate(event, onClick)}
+      style={{display:"flex",alignItems:"center",gap:8,padding:`6px ${12 + indent * 16}px`,cursor:"pointer",background:active ? C.sbActive : "transparent",borderRadius:4,margin:"1px 4px",transition:"background 0.15s, box-shadow 0.15s",userSelect:"none",width:"calc(100% - 8px)",border:"none",textAlign:"left",WebkitAppearance:"none",appearance:"none",backgroundClip:"padding-box",color:"inherit"}}
+    >
       <span style={{fontSize:13,flexShrink:0}}>{icon}</span>
       <span style={{fontSize:12,color:active ? C.white : C.sbText,flex:1,lineHeight:1.4}}>{label}</span>
       {isCommitted
         ? <span style={{fontSize:10,color:"#a6e3a1",flexShrink:0,fontWeight:700}}>✓</span>
         : hasDoc && <span style={{width:6,height:6,borderRadius:"50%",background:"#a6e3a1",flexShrink:0}}/>}
-    </div>
+    </button>
   );
 
   const FolderItem = ({ label, open, onToggle, count, subtitle, indent = 0 }) => (
-    <div onClick={onToggle}
-      style={{display:"flex",alignItems:"center",gap:6,padding:`6px ${12 + indent * 16}px`,cursor:"pointer",userSelect:"none",margin:"2px 4px",borderRadius:4,transition:"background 0.15s"}}
-      onMouseEnter={e => e.currentTarget.style.background = C.sbHover}
-      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+    <button
+      type="button"
+      className="doc-tree-action"
+      onClick={onToggle}
+      onKeyDown={(event) => handleKeyActivate(event, onToggle)}
+      style={{display:"flex",alignItems:"center",gap:6,padding:`6px ${12 + indent * 16}px`,cursor:"pointer",userSelect:"none",margin:"2px 4px",borderRadius:4,transition:"background 0.15s, box-shadow 0.15s",width:"calc(100% - 8px)",border:"none",textAlign:"left",WebkitAppearance:"none",appearance:"none",backgroundClip:"padding-box",color:"inherit"}}
+    >
       <span style={{fontSize:10,color:C.sbMuted,transition:"transform 0.15s",display:"inline-block",transform:open ? "rotate(90deg)" : "rotate(0deg)"}}>▶</span>
       <span style={{fontSize:12,color:open ? "#f5a97f" : C.sbText,flexShrink:0}}>{open ? "📂" : "📁"} {label}</span>
       {subtitle && <span title={subtitle} style={{fontSize:11,color:C.sbMuted,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{subtitle}</span>}
       {!subtitle && <span style={{flex:1}}/>}
       {count > 0 && <span style={{fontSize:9,padding:"1px 5px",background:"#313150",color:C.sbMuted,borderRadius:3,fontFamily:"'DM Mono',monospace",flexShrink:0}}>{count}</span>}
-    </div>
+    </button>
   );
 
   // ProposalFolder: 单个提案的展开/收起文件夹
@@ -4546,10 +4707,13 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
     const allCommitted = gitSummary.allCommitted;
     return (
       <div>
-        <div onClick={() => onToggleProposal?.(proposal.id)}
-          style={{display:"flex",alignItems:"center",gap:6,padding:`5px ${12 + indent * 16}px`,cursor:"pointer",margin:"1px 4px",borderRadius:4,transition:"background 0.15s",userSelect:"none"}}
-          onMouseEnter={e => e.currentTarget.style.background = C.sbHover}
-          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+        <button
+          type="button"
+          className="doc-tree-action"
+          onClick={() => onToggleProposal?.(proposal.id)}
+          onKeyDown={(event) => handleKeyActivate(event, () => onToggleProposal?.(proposal.id))}
+          style={{display:"flex",alignItems:"center",gap:6,padding:`5px ${12 + indent * 16}px`,cursor:"pointer",margin:"1px 4px",borderRadius:4,transition:"background 0.15s, box-shadow 0.15s",userSelect:"none",width:"calc(100% - 8px)",border:"none",textAlign:"left",WebkitAppearance:"none",appearance:"none",backgroundClip:"padding-box",color:"inherit"}}
+        >
           <span style={{fontSize:9,color:C.sbMuted,display:"inline-block",transform:isOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}>▶</span>
           <span style={{fontSize:12,color:isOpen?"#cba6f7":C.sbText,flex:1}}>{isOpen?"📂":"📁"} {proposal.name}</span>
           {allCommitted
@@ -4559,7 +4723,7 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
               : completedDocs > 0
                 ? <span style={{fontSize:9,padding:"1px 5px",background:"#313150",color:C.sbMuted,borderRadius:3,fontFamily:"'DM Mono',monospace"}}>{completedDocs}</span>
                 : null}
-        </div>
+        </button>
         {isOpen && PROPOSAL_DOC_TYPES.map(dt => {
           if (filters.hideProposals && isProposalDocType(dt.key)) return null;
           const key = `${cardId}:p:${proposal.id}:${dt.key}`;
@@ -4642,8 +4806,8 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
           {FILTER_CHIPS.map(chip => {
             const active = Boolean(filters[chip.id]);
             return (
-              <button key={chip.id} onClick={() => toggleFilter(chip.id)}
-                style={{fontSize:10,padding:"2px 7px",borderRadius:10,border:"none",cursor:"pointer",
+              <button key={chip.id} onClick={() => toggleFilter(chip.id)} className="doc-tree-chip"
+                style={{fontSize:10,padding:"2px 7px",borderRadius:10,border:"none",cursor:"pointer",WebkitAppearance:"none",appearance:"none",backgroundClip:"padding-box",
                   background: active ? C.accent : C.sbHover,
                   color: active ? "#fff" : C.sbMuted,
                   transition:"all 0.15s"}}>
@@ -4655,12 +4819,13 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
       </div>
       <div style={{padding:"0 12px 10px"}}>
         <select
+          className="doc-tree-control"
           value={groupBy}
           onChange={(e) => {
             setGroupBy(e.target.value);
             setExpandedGroups(new Set());
           }}
-          style={{width:"100%",height:28,background:C.sbHover,color:C.sbText,border:"1px solid #34344a",borderRadius:6,padding:"0 8px",fontSize:12,cursor:"pointer",outline:"none"}}
+          style={{width:"100%",height:28,background:C.sbHover,color:C.sbText,border:"1px solid #34344a",borderRadius:6,padding:"0 8px",fontSize:12,cursor:"pointer",outline:"none",WebkitAppearance:"none",appearance:"none"}}
         >
           {DOC_TREE_GROUP_DIMENSIONS.map(option => (
             <option key={option.id} value={option.id}>{option.label}</option>
@@ -4968,24 +5133,74 @@ function DocEditor({ card, docType, proposalName, content, editMode, editText, o
 function ChatbotPanel({ card, onSendMessage }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [inputMode, setInputMode] = useState('preview');
   const [expandedTrace, setExpandedTrace] = useState({});
   const [expandedTraceSkill, setExpandedTraceSkill] = useState({});
+  const [toolPanelOpen, setToolPanelOpen] = useState(false);
+  const [toolActiveIndex, setToolActiveIndex] = useState(0);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
   const currentModel = localStorage.getItem('ai_model_selected') || 'claude';
   const historyKey = `chatHistory_${currentModel}`;
   // 迁移兼容：如果是 claude 模式且存在旧版历史，优先用旧版直到新消息写入
   const chatHistory = card?.[historyKey] ?? (currentModel === 'claude' ? card?.chatHistory : null) ?? [];
+  const toolRegistry = useMemo(() => getChatbotToolRegistry(), []);
+  const slashQuery = useMemo(() => {
+    const normalized = String(input || '').trimStart();
+    if (!normalized.startsWith('/')) return '';
+    return normalized.slice(1).trim();
+  }, [input]);
+  const filteredTools = useMemo(() => {
+    const query = slashQuery.toLowerCase();
+    if (!query) return toolRegistry;
+    return toolRegistry.filter((tool) => {
+      const haystack = [
+        tool.title,
+        tool.description,
+        ...(Array.isArray(tool.keywords) ? tool.keywords : []),
+      ].join(' ').toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [slashQuery, toolRegistry]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [chatHistory.length]);
 
+  useEffect(() => {
+    const active = String(input || '').trimStart().startsWith('/');
+    setToolPanelOpen(active);
+  }, [input]);
+
+  useEffect(() => {
+    setToolActiveIndex(0);
+  }, [slashQuery, toolPanelOpen]);
+
+  const executeTool = async (tool) => {
+    if (!tool || loading) return;
+    const generatedMessage = buildToolExecutionMessage(tool, slashQuery);
+    setInput('');
+    setToolPanelOpen(false);
+    setToolActiveIndex(0);
+    setLoading(true);
+    await onSendMessage(generatedMessage, 'chatbot', {
+      toolInvocation: {
+        id: tool.id,
+        type: tool.type,
+        title: tool.title,
+        skillId: tool.skillId || null,
+        commandId: tool.type === 'command' ? tool.id : null,
+        templateSource: tool.templateSource,
+      },
+      source: tool.type,
+    });
+    setLoading(false);
+  };
+
   const handleSend = async () => {
     if (!input.trim() || loading) return;
     const message = input;
     setInput("");
-    setInputMode('preview');
+    setToolPanelOpen(false);
     setLoading(true);
     await onSendMessage(message, "chatbot");
     setLoading(false);
@@ -4999,8 +5214,64 @@ function ChatbotPanel({ card, onSendMessage }) {
       retryMessageId: msg.id,
       requestId: msg?.meta?.requestId,
       isRetry: true,
+      toolInvocation: msg?.meta?.toolInvocation,
+      source: msg?.meta?.source,
     });
     setLoading(false);
+  };
+
+  const renderToolResultCard = (msg) => {
+    const invocation = msg?.meta?.toolInvocation;
+    if (!invocation || msg?.type === 'thinking') return null;
+    const contentText = String(msg?.content || '');
+    const json = extractJsonObject(contentText);
+    const isReview = invocation.id === 'pm-requirement-review';
+    const riskLines = extractBulletLines(contentText, /风险清单|风险提示|风险/i);
+    const suggestionLines = extractBulletLines(contentText, /建议|缓解|行动/i);
+    const missingLines = extractBulletLines(contentText, /缺失项|完备性|待补充/i);
+
+    return (
+      <div style={{marginBottom:8,padding:"8px 10px",borderRadius:8,background:"#f8f7f4",border:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:6}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.ink}}>{invocation.type === 'command' ? '命令执行' : '技能执行'} · {invocation.title}</div>
+          <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{invocation.templateSource === 'custom' ? '自定义模板' : '默认模板'}</div>
+        </div>
+
+        {isReview && json && typeof json === 'object' ? (
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[['总分', json.score], ['完整性', json.completeness], ['逻辑性', json.logic], ['风险', json.risk]].map(([label, val]) => (
+                <span key={label} style={{fontSize:10,padding:"2px 6px",borderRadius:999,background:C.white,border:`1px solid ${C.border}`,color:C.ink,fontFamily:"'DM Mono',monospace"}}>
+                  {label}: {typeof val === 'number' ? val : '--'}
+                </span>
+              ))}
+            </div>
+            {json.summary && <div style={{fontSize:11,color:C.ink,lineHeight:1.5}}>结论：{json.summary}</div>}
+            {Array.isArray(json.risks) && json.risks.length > 0 && (
+              <div style={{fontSize:11,color:C.ink}}>
+                <div style={{fontWeight:700,marginBottom:3}}>风险</div>
+                {json.risks.map((item, idx) => <div key={`risk-${idx}`} style={{lineHeight:1.5}}>• {item}</div>)}
+              </div>
+            )}
+            {Array.isArray(json.suggestions) && json.suggestions.length > 0 && (
+              <div style={{fontSize:11,color:C.ink}}>
+                <div style={{fontWeight:700,marginBottom:3}}>建议</div>
+                {json.suggestions.map((item, idx) => <div key={`sug-${idx}`} style={{lineHeight:1.5}}>• {item}</div>)}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{display:"flex",flexDirection:"column",gap:5,fontSize:11,color:C.ink}}>
+            {riskLines.length > 0 && <div>风险项：{riskLines.slice(0, 3).join('；')}</div>}
+            {missingLines.length > 0 && <div>缺失项：{missingLines.slice(0, 3).join('；')}</div>}
+            {suggestionLines.length > 0 && <div>建议：{suggestionLines.slice(0, 3).join('；')}</div>}
+            {riskLines.length === 0 && missingLines.length === 0 && suggestionLines.length === 0 && (
+              <div style={{color:C.muted}}>已执行结构化技能，详情见下方完整回复。</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -5098,6 +5369,7 @@ function ChatbotPanel({ card, onSendMessage }) {
                   </div>
                 ) : (
                   <div className="doc-content" style={{fontSize:12,lineHeight:1.6}}>
+                    {renderToolResultCard(msg)}
                     <SafeMarkdown content={msg.content} fallbackStyle={{fontSize:12,color:C.ink,lineHeight:1.6}} />
                   </div>
                 )}
@@ -5174,49 +5446,81 @@ function ChatbotPanel({ card, onSendMessage }) {
       {/* Input */}
       <div style={{padding:"12px",borderTop:`1px solid ${C.border}`}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-          <span style={{fontSize:11,color:C.muted,fontWeight:600}}>Markdown 预览输入</span>
+          <span style={{fontSize:11,color:C.muted,fontWeight:600}}>直接输入</span>
           <span style={{fontSize:10,color:C.muted}}>{loading ? '发送中…' : '支持 Markdown'}</span>
         </div>
-
-        {inputMode === 'preview' ? (
-          <div
-            onClick={() => setInputMode('edit')}
-            style={{minHeight:92,maxHeight:220,overflowY:"auto",padding:"10px 12px",border:`1px solid ${C.border}`,borderRadius:8,background:C.white,cursor:"text"}}
-          >
-            {input.trim() ? (
-              <div className="doc-content" style={{fontSize:12,lineHeight:1.6}}>
-                <SafeMarkdown content={input} fallbackStyle={{fontSize:12,color:C.ink,lineHeight:1.6}} />
-              </div>
-            ) : (
-              <div style={{fontSize:12,color:C.muted,lineHeight:1.6}}>点击此处开始输入，默认显示预览效果。</div>
-            )}
-          </div>
-        ) : (
-          <div>
-            <textarea
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+        <div style={{position:'relative'}}>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (toolPanelOpen) {
+                if (e.key === 'Tab') {
                   e.preventDefault();
-                  handleSend();
+                  setToolPanelOpen(false);
+                  inputRef.current?.focus();
+                  return;
                 }
-              }}
-              placeholder="输入你的问题（支持 Markdown）..."
-              disabled={loading}
-              rows={4}
-              style={{width:"100%",minHeight:92,maxHeight:220,padding:"10px 12px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,background:C.white,outline:"none",resize:"vertical",lineHeight:1.55,fontFamily:"'DM Mono',monospace",boxSizing:"border-box"}}
-            />
-            <div style={{display:"flex",justifyContent:"flex-end",marginTop:6}}>
-              <button
-                onClick={() => setInputMode('preview')}
-                style={{padding:0,border:"none",background:"none",cursor:"pointer",fontSize:11,color:C.accent,fontWeight:600}}
-              >
-                完成编辑并返回预览
-              </button>
+                if (filteredTools.length > 0) {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setToolActiveIndex(prev => (prev + 1) % filteredTools.length);
+                    return;
+                  }
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setToolActiveIndex(prev => (prev - 1 + filteredTools.length) % filteredTools.length);
+                    return;
+                  }
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    executeTool(filteredTools[toolActiveIndex] || filteredTools[0]);
+                    return;
+                  }
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setToolPanelOpen(false);
+                  return;
+                }
+              }
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="输入你的问题（支持 Markdown，输入 / 调用技能）..."
+            disabled={loading}
+            rows={4}
+            style={{width:"100%",minHeight:92,maxHeight:220,padding:"10px 12px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,background:C.white,outline:"none",resize:"vertical",lineHeight:1.55,fontFamily:"'DM Mono',monospace",boxSizing:"border-box"}}
+          />
+          {toolPanelOpen && (
+            <div style={{position:'absolute',left:0,right:0,bottom:'calc(100% + 8px)',maxHeight:260,overflowY:'auto',background:C.white,border:`1px solid ${C.border}`,borderRadius:10,boxShadow:'0 10px 28px rgba(0,0,0,0.12)',padding:'8px 0',zIndex:10}}>
+              <div style={{padding:'4px 12px 8px',fontSize:11,color:C.muted,fontWeight:700}}>技能与命令</div>
+              {filteredTools.length === 0 ? (
+                <div style={{padding:'6px 12px',fontSize:12,color:C.muted}}>未找到匹配项，继续输入或按 Esc 关闭。</div>
+              ) : filteredTools.map((tool, index) => {
+                const active = index === toolActiveIndex;
+                return (
+                  <button
+                    key={tool.id}
+                    onMouseEnter={() => setToolActiveIndex(index)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      executeTool(tool);
+                    }}
+                    style={{width:'100%',textAlign:'left',border:'none',background:active ? C.accentLight : 'transparent',padding:'9px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:8}}
+                  >
+                    <span style={{fontSize:14}}>{tool.icon}</span>
+                    <span style={{fontSize:12,color:C.ink,fontWeight:600,minWidth:90}}>{tool.title}</span>
+                    <span style={{fontSize:11,color:C.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tool.description}</span>
+                  </button>
+                );
+              })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div style={{display:"flex",gap:8,marginTop:8}}>
           <button
@@ -5226,13 +5530,13 @@ function ChatbotPanel({ card, onSendMessage }) {
             发送
           </button>
           <button
-            onClick={() => { setInput(''); setInputMode('preview'); }}
+            onClick={() => { setInput(''); setToolPanelOpen(false); }}
             disabled={loading || !input}
             style={{padding:"8px 12px",background:C.white,color:C.muted,border:`1px solid ${C.border}`,borderRadius:6,cursor:loading || !input ? "default" : "pointer",fontSize:12,fontWeight:600}}>
             清空
           </button>
         </div>
-        <div style={{fontSize:10,color:C.muted,marginTop:6}}>Enter 发送，Shift+Enter 换行</div>
+        <div style={{fontSize:10,color:C.muted,marginTop:6}}>Enter 发送，Shift+Enter 换行，输入 / 打开技能面板，Tab 返回输入</div>
       </div>
 
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -5405,9 +5709,7 @@ function ReferencePanel({ currentCard, allCards, onUpdateRefs }) {
             暂无相关历史需求
           </div>
         ) : similarCards.map(card => (
-          <div key={card.id} style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px",marginBottom:10,cursor:"pointer",transition:"all 0.15s"}}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.boxShadow = `0 2px 8px ${C.accent}33`; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = "none"; }}>
+          <div key={card.id} style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px",marginBottom:10,cursor:"default",transition:"border-color 0.15s"}}>
             <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
               <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.muted}}>{card.id}</span>
               <span style={{fontSize:10,padding:"1px 5px",background:priorityColor(card.priority),color:"#fff",borderRadius:3,fontFamily:"'DM Mono',monospace"}}>{card.priority}</span>
@@ -6314,13 +6616,41 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, o
   };
 
   return (
-    <div style={{height:"100vh",display:"flex",flexDirection:"column",background:C.paper}}>
+    <div className="ai-design-page-root" style={{height:"100vh",display:"flex",flexDirection:"column",background:C.paper,cursor:"default"}}>
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
         .doc-content *{box-sizing:border-box}
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:#3a3a5c;border-radius:3px}
+        .ai-design-page-root{cursor:default}
+        .ai-design-page-root button,
+        .ai-design-page-root select,
+        .ai-design-page-root input,
+        .ai-design-page-root textarea{font-family:inherit}
+        .ai-design-page-root button:focus-visible,
+        .ai-design-page-root select:focus-visible,
+        .ai-design-page-root input:focus-visible,
+        .ai-design-page-root textarea:focus-visible,
+        .ai-design-page-root .doc-tree-action:focus-visible,
+        .ai-design-page-root .doc-tree-chip:focus-visible,
+        .ai-design-page-root .doc-tree-control:focus-visible{
+          outline:2px solid ${C.accent};
+          outline-offset:1px;
+        }
+        .ai-design-page-root .doc-tree-action:hover{background:${C.sbHover}}
+        .ai-design-page-root .doc-tree-action:focus-visible{box-shadow:inset 0 0 0 1px ${C.accent}88}
+        .ai-design-page-root .doc-tree-chip:hover{filter:brightness(1.08)}
+        .ai-design-page-root .doc-tree-chip:active{transform:translateY(1px)}
+        .ai-design-page-root .doc-tree-action,
+        .ai-design-page-root .doc-tree-chip,
+        .ai-design-page-root .doc-tree-control{
+          -webkit-appearance:none;
+          appearance:none;
+          background-clip:padding-box;
+        }
+        .ai-design-page-root .doc-tree-action{background-color:transparent}
+        .ai-design-page-root .doc-tree-control{background-color:${C.sbHover};color:${C.sbText}}
       `}</style>
 
       {/* Top bar */}
@@ -8447,10 +8777,12 @@ export default function PMPlatform() {
     const userMessageId = buildChatMessageId('user');
     const assistantMessageId = options?.retryMessageId || buildChatMessageId('assistant');
     const startedAt = Date.now();
-    const skillId = 'chatbot';
-    const skillName = AI_SKILLS[skillId]?.name || 'Chatbot';
+    const toolInvocation = options?.toolInvocation || null;
+    const sourceType = options?.source || toolInvocation?.type || 'user';
+    const skillId = toolInvocation?.skillId || 'chatbot';
+    const skillName = toolInvocation?.title || AI_SKILLS[skillId]?.name || 'Chatbot';
     const skillVariables = Array.isArray(AI_SKILLS[skillId]?.vars) ? AI_SKILLS[skillId].vars : [];
-    const templateSource = getSkillTemplateSource(skillId);
+    const templateSource = toolInvocation?.templateSource || getSkillTemplateSource(skillId);
 
     const thinkingTrace = {
       summary: '思考过程（调用 1 个 Skill）',
@@ -8487,27 +8819,45 @@ export default function PMPlatform() {
       source: 'ai',
       content: options?.isRetry ? '正在重试...' : '思考中...',
       trace: thinkingTrace,
-      meta: {
-        requestId,
-        model,
-        userMessage: rawInput,
-        startedAt: new Date(startedAt).toISOString(),
-      },
-    };
+        meta: {
+          requestId,
+          model,
+          source: sourceType,
+          toolInvocation,
+          userMessage: rawInput,
+          startedAt: new Date(startedAt).toISOString(),
+        },
+      };
 
     const nextHistory = options?.retryMessageId
       ? replaceMessageById(chatHistory, assistantMessageId, thinkingMessage)
       : [
         ...chatHistory,
-        { id: userMessageId, role: 'user', type: 'normal', status: 'done', source: 'user', content: rawInput },
+        {
+          id: userMessageId,
+          role: 'user',
+          type: sourceType === 'skill' || sourceType === 'command' ? 'tool_request' : 'normal',
+          status: 'done',
+          source: sourceType,
+          content: rawInput,
+          meta: {
+            requestId,
+            source: sourceType,
+            toolInvocation,
+          },
+        },
         thinkingMessage,
       ];
 
     updateCard(card.id, buildChatHistoryPatch(model, historyKey, nextHistory));
 
     try {
+      const basePrompt = resolveSkillPrompt(skillId, card, { message: rawInput });
+      const runtimePrompt = sourceType === 'skill' || sourceType === 'command'
+        ? `${basePrompt}\n\n附加执行指令：${rawInput}`
+        : basePrompt;
       const response = await callAI(
-        resolveSkillPrompt(skillId, card, { message: rawInput }),
+        runtimePrompt,
         1500
       );
       const elapsedMs = Date.now() - startedAt;
