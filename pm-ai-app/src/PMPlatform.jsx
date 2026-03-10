@@ -278,6 +278,85 @@ function buildReviewQuestions(missingFields) {
   return missingFields.map((field) => questionMap[field]).filter(Boolean);
 }
 
+function buildClarificationSummaryPairs(questions, answers, customInputs) {
+  return (questions || []).map((q, idx) => {
+    const selectedValue = answers?.[q.field];
+    const customValue = String(customInputs?.[q.field] || "").trim();
+    let answer = "";
+
+    if (Array.isArray(q.options)) {
+      if (selectedValue === "__other__") {
+        answer = customValue;
+      } else {
+        const matched = q.options.find((opt) => opt.value === selectedValue);
+        answer = matched?.label || String(selectedValue || "").trim();
+      }
+    } else {
+      answer = customValue;
+    }
+
+    if (q.field === "acceptanceCriteria") {
+      const criteria = normalizeAcceptanceCriteria(answer);
+      answer = criteria.map((item, i) => `${i + 1}. ${item}`).join("\n");
+    }
+
+    return {
+      id: `${q.field}-${idx + 1}`,
+      field: q.field,
+      question: q.label,
+      answer,
+      index: idx + 1,
+    };
+  }).filter((pair) => String(pair.answer || "").trim());
+}
+
+function shouldTriggerClarification(card) {
+  const raw = String(card?.rawRequirement || card?.desc || "").trim();
+  if (raw.length < 50) return true;
+  return !/(用户|用例|场景|谁)/.test(raw);
+}
+
+function getClarificationFallbackQuestions() {
+  return [
+    {
+      id: "target-user",
+      type: "choice",
+      text: "该功能主要面向哪类用户？",
+      multi: false,
+      options: ["C 端用户", "B 端运营", "内部员工", "其他"],
+    },
+    {
+      id: "core-scenarios",
+      type: "choice",
+      text: "核心使用场景是哪些？（可多选）",
+      multi: true,
+      options: ["首次使用", "日常高频", "异常处理", "其他"],
+    },
+    {
+      id: "extra-rules",
+      type: "text",
+      text: "请补充关键业务规则或边界条件",
+      placeholder: "例如：仅支持企业账号，超时时间 30 秒",
+      multi: false,
+    },
+  ];
+}
+
+function buildClarificationSummaryText(questions, answers) {
+  const lines = ["【AI 澄清问答摘要】"];
+  (questions || []).forEach((q) => {
+    const value = answers?.[q.id];
+    let text = "";
+    if (Array.isArray(value)) {
+      text = value.join("、");
+    } else {
+      text = String(value || "").trim();
+    }
+    if (text) lines.push(`- ${q.text}: ${text}`);
+  });
+  return lines.join("\n");
+}
+
 /* ═══════════════════════════ INITIAL DATA ═══════════════════════════════════ */
 
 // Spec 示例内容：提案评审与修改模块
@@ -463,15 +542,166 @@ const FALLBACK_DOCS = {
  * 新: { prd, proposals: [{ id, name, proposal, design, spec, tasks }] }
  */
 function normalizeDocs(docs) {
-  if (!docs) return { prd: null, proposals: [] };
-  if (Array.isArray(docs.proposals)) return docs; // 已是新格式
+  if (!docs) return { prd: null, proposals: [], versionHistory: [] };
+  if (Array.isArray(docs.proposals)) {
+    return {
+      ...docs,
+      versionHistory: Array.isArray(docs.versionHistory) ? docs.versionHistory : [],
+    };
+  }
   // 旧格式迁移
-  const { prd, spec, proposal, design, tasks } = docs;
+  const { prd, spec, proposal, design, tasks, ...rest } = docs;
   const hasContent = spec || proposal || design || tasks;
   return {
+    ...rest,
     prd: prd || null,
     proposals: hasContent ? [{ id:"default", name:"OpenSpec 提案", proposal:proposal||null, design:design||null, spec:spec||null, tasks:tasks||null }] : [],
+    versionHistory: Array.isArray(docs.versionHistory) ? docs.versionHistory : [],
   };
+}
+
+function buildGitProfileId(profile = {}, fallbackIndex = 1) {
+  const base = `${profile.platform || 'git'}-${profile.repoUrl || ''}-${profile.branch || 'main'}`
+    .toLowerCase()
+    .replace(/https?:\/\//g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+  return `${base || 'repo'}-${fallbackIndex}`;
+}
+
+function normalizeGitConfig(git) {
+  const fallback = { profiles: [], bindingsByAppId: {}, defaultProfileIds: [] };
+  if (!git || typeof git !== 'object') return fallback;
+
+  const hasProfiles = Array.isArray(git.profiles);
+  const sourceProfiles = hasProfiles
+    ? git.profiles
+    : [{
+      id: 'legacy-1',
+      name: '历史仓库',
+      platform: git.platform || 'github',
+      repoUrl: git.repoUrl || '',
+      branch: git.branch || 'main',
+      token: git.token || '',
+    }];
+
+  const usedIds = new Set();
+  const profiles = sourceProfiles
+    .map((profile, index) => {
+      if (!profile || typeof profile !== 'object') return null;
+      const next = {
+        id: String(profile.id || '').trim(),
+        name: String(profile.name || '').trim(),
+        platform: profile.platform === 'gitlab' ? 'gitlab' : 'github',
+        repoUrl: String(profile.repoUrl || '').trim(),
+        branch: String(profile.branch || 'main').trim() || 'main',
+        token: String(profile.token || '').trim(),
+      };
+      if (!next.id) next.id = buildGitProfileId(next, index + 1);
+      while (usedIds.has(next.id)) {
+        next.id = `${next.id}-${index + 1}`;
+      }
+      usedIds.add(next.id);
+      if (!next.name) {
+        const parsed = parseRepoUrl(next.repoUrl);
+        next.name = parsed.repo ? `${parsed.owner}/${parsed.repo}` : `仓库 ${index + 1}`;
+      }
+      return next;
+    })
+    .filter(Boolean)
+    .filter((profile) => profile.repoUrl || profile.token || profile.name);
+
+  const profileIds = new Set(profiles.map((profile) => profile.id));
+  const bindingsRaw = git.bindingsByAppId && typeof git.bindingsByAppId === 'object' ? git.bindingsByAppId : {};
+  const bindingsByAppId = {};
+  Object.entries(bindingsRaw).forEach(([appId, ids]) => {
+    const normalized = Array.isArray(ids)
+      ? ids.map((id) => String(id || '').trim()).filter((id) => profileIds.has(id))
+      : [];
+    if (normalized.length > 0) bindingsByAppId[appId] = Array.from(new Set(normalized));
+  });
+
+  const defaultProfileIds = Array.isArray(git.defaultProfileIds)
+    ? Array.from(new Set(git.defaultProfileIds.map((id) => String(id || '').trim()).filter((id) => profileIds.has(id))))
+    : [];
+
+  if (!hasProfiles && profiles.length > 0 && defaultProfileIds.length === 0) {
+    defaultProfileIds.push(profiles[0].id);
+  }
+
+  return { profiles, bindingsByAppId, defaultProfileIds };
+}
+
+function getCardAppIds(card) {
+  if (!card || typeof card !== 'object') return [];
+  const appIds = Array.isArray(card.appIds) ? card.appIds.filter(Boolean) : [];
+  if (appIds.length > 0) return Array.from(new Set(appIds.map((id) => String(id).trim()).filter(Boolean)));
+  if (typeof card.appId === 'string' && card.appId.trim()) return [card.appId.trim()];
+  if (typeof card.app === 'string' && card.app.trim()) return [card.app.trim()];
+  return [];
+}
+
+function resolveTargetGitProfiles(card, gitConfig) {
+  const normalized = normalizeGitConfig(gitConfig);
+  const profileMap = new Map(normalized.profiles.map((profile) => [profile.id, profile]));
+  const appIds = getCardAppIds(card);
+  const fromBindings = [];
+  appIds.forEach((appId) => {
+    const boundIds = normalized.bindingsByAppId?.[appId] || [];
+    boundIds.forEach((id) => {
+      if (profileMap.has(id)) fromBindings.push(profileMap.get(id));
+    });
+  });
+  const fallback = normalized.defaultProfileIds
+    .map((id) => profileMap.get(id))
+    .filter(Boolean);
+  const merged = (fromBindings.length > 0 ? fromBindings : fallback)
+    .filter((profile) => profile?.repoUrl && profile?.token);
+  const seen = new Set();
+  return merged.filter((profile) => {
+    if (seen.has(profile.id)) return false;
+    seen.add(profile.id);
+    return true;
+  });
+}
+
+function readDocGitStatusResults(gitStatus, docType) {
+  const raw = gitStatus?.[docType];
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    return {
+      legacy: {
+        ok: true,
+        url: raw,
+        committedAt: gitStatus?.committedAt || null,
+      },
+    };
+  }
+  if (raw && typeof raw === 'object') return raw;
+  return {};
+}
+
+function hasDocGitSuccess(gitStatus, docType) {
+  const record = readDocGitStatusResults(gitStatus, docType);
+  return Object.values(record).some((item) => item?.ok && item?.url);
+}
+
+function summarizeProposalGitStatus(proposal) {
+  const docsWithContent = PROPOSAL_DOC_TYPES.filter((dt) => proposal?.[dt.key]);
+  if (docsWithContent.length === 0) return { totalTargets: 0, successTargets: 0, allCommitted: false, partial: false };
+  let totalTargets = 0;
+  let successTargets = 0;
+  docsWithContent.forEach((dt) => {
+    const record = readDocGitStatusResults(proposal?.gitStatus, dt.key);
+    const values = Object.values(record);
+    if (values.length === 0) return;
+    totalTargets += values.length;
+    successTargets += values.filter((item) => item?.ok).length;
+  });
+  const allCommitted = totalTargets > 0 && successTargets === totalTargets;
+  const partial = successTargets > 0 && successTargets < totalTargets;
+  return { totalTargets, successTargets, allCommitted, partial };
 }
 
 function firstNonEmptyValue(...values) {
@@ -595,7 +825,7 @@ const BASE_INITIAL_CARDS = [
     desc: "提供直观的多列看板视图，展示从 Meego 同步过来的业务需求，支持拖拽流转、筛选排序和 AI 评审分数展示，作为整个智能需求管理工作台的核心入口。",
     tags: ["看板", "基础能力", "Meego"],
     author: "张晓薇",
-    date: "2026-02-24",
+    date: "2026-03-08",
     userStory: "作为一个 产品经理，我希望 在看板上直观看到所有需求的处理阶段，以便 快速了解哪些需求在等待评审、哪些在 AI 分析中。",
     acceptanceCriteria: [
       "6列看板：待评审/评审中/AI分析中/人工确认/已通过/已拒绝",
@@ -746,7 +976,7 @@ const BASE_INITIAL_CARDS = [
     desc: "集成在需求详情页的对话界面，产品经理与 AI 助手多轮对话澄清需求。AI 主动提问、实时结构化输出、支持 UI 弹框确认，并持续评估需求的完整性、逻辑性和风险。",
     tags: ["AI", "对话", "核心能力"],
     author: "李明",
-    date: "2026-02-24",
+    date: "2026-03-09",
     userStory: "作为一个 产品经理，我希望 AI 助手能主动发现需求中缺失的关键信息，以便 快速补全需求、减少返工。",
     acceptanceCriteria: [
       "AI首轮回复延迟≤3秒",
@@ -819,7 +1049,7 @@ const BASE_INITIAL_CARDS = [
     desc: "支持集成和管理多种 SDD 规范框架（如 OpenSpec、Open-Kit），提供插件化接入机制和规范适配器，将 AI 通用输出转换为特定框架文档格式。",
     tags: ["SDD", "插件化", "架构"],
     author: "王芳",
-    date: "2026-02-24",
+    date: "2026-03-10",
     userStory: "作为一个 产品经理，我希望 根据项目需求选择合适的规范框架，以便 生成的文档符合团队标准。",
     acceptanceCriteria: [
       "插件化框架接入机制，新框架≤3天接入",
@@ -882,7 +1112,7 @@ const BASE_INITIAL_CARDS = [
     desc: "基于 AI 澄清后的结构化需求，结合选定的规范框架，一键生成 proposal.md、design.md、specs/delta.md、tasks.md 等完整提案文档包。支持流式输出和在线预览编辑。",
     tags: ["AI生成", "OpenSpec", "核心能力"],
     author: "陈刚",
-    date: "2026-02-24",
+    date: "2026-03-11",
     userStory: "作为一个 产品经理，我希望 一键生成完整的OpenSpec提案包，以便 快速进入评审和开发流程。",
     acceptanceCriteria: [
       "一键生成4类文档（proposal/design/spec/tasks）",
@@ -988,7 +1218,7 @@ AI 生成 + 模板填充的混合架构
     desc: "提供友好的界面供产品经理对 AI 生成的提案进行在线评审、修改和版本管理。支持分屏对比、评论批注和版本历史回溯。",
     tags: ["评审", "协作", "编辑器"],
     author: "刘洋",
-    date: "2026-02-24",
+    date: "2026-03-12",
     userStory: "作为一个 产品经理，我希望 在平台内直接对AI生成的提案进行修改和批注，以便 和团队高效协作。",
     acceptanceCriteria: [
       "分屏对比：AI草稿 vs 修改版",
@@ -1185,7 +1415,7 @@ interface Comment {
     desc: "实现 OpenSpec 提案与 Git 仓库的自动化同步。产品经理确认提案后系统自动生成 Git Commit，将文件提交到指定目录下，并可选创建 PR/MR。",
     tags: ["Git", "DevOps", "集成"],
     author: "陈刚",
-    date: "2026-02-24",
+    date: "2026-03-13",
     userStory: "作为一个 产品经理，我希望 确认提案后一键同步至Git仓库，以便 开发人员直接拉取最新设计文档。",
     acceptanceCriteria: [
       "支持GitHub/GitLab/Gitee三大平台",
@@ -1423,7 +1653,7 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     desc: "基于空间、子系统、应用、迭代四个维度提供联动筛选，并支持点击卡片 badge 快速触发对应维度过滤。",
     tags: ["看板", "筛选", "体验优化"],
     author: "王芳",
-    date: "2026-03-02",
+    date: "2026-03-14",
     userStory: "作为产品经理，我希望用多维筛选快速定位目标需求，以便在演示中高效聚焦。",
     acceptanceCriteria: [
       "支持空间/子系统/应用/迭代四维 AND 过滤",
@@ -1445,7 +1675,7 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     desc: "定时同步 Meego 需求并完成字段映射，支持状态回写策略与异常告警。",
     tags: ["Meego", "同步", "数据映射"],
     author: "李明",
-    date: "2026-03-02",
+    date: "2026-03-15",
     userStory: "作为产品经理，我希望系统自动同步需求并正确映射字段，以便减少手工维护。",
     acceptanceCriteria: [
       "支持定时同步与手动触发同步",
@@ -1467,7 +1697,7 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     desc: "在 AI 需求澄清过程中，对关键决策点使用弹框确认，保证需求信息准确。",
     tags: ["AI澄清", "弹框", "需求质量"],
     author: "张晓薇",
-    date: "2026-03-03",
+    date: "2026-03-16",
     userStory: "作为产品经理，我希望关键问题通过弹框确认，以便避免歧义和遗漏。",
     acceptanceCriteria: [
       "关键问题触发弹框确认",
@@ -1489,7 +1719,7 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     desc: "通过统一 AIClient 支持 Claude/GLM/ARK 多模型切换，并在失败时提供演示兜底。",
     tags: ["AI模型", "路由", "兜底"],
     author: "陈刚",
-    date: "2026-03-03",
+    date: "2026-03-17",
     userStory: "作为产品经理，我希望在不同网络环境下可切换模型，以便保证演示流程不中断。",
     acceptanceCriteria: [
       "支持 Claude/GLM/ARK 统一接入",
@@ -1520,7 +1750,7 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     desc: "为 OpenSpec 等框架提供模板管理能力，支持 proposal/design/spec/tasks 模板配置与版本化。",
     tags: ["SDD", "模板", "配置中心"],
     author: "刘洋",
-    date: "2026-03-04",
+    date: "2026-03-18",
     userStory: "作为产品经理，我希望统一管理模板版本，以便不同项目按规范快速生成文档。",
     acceptanceCriteria: [
       "支持模板查看、编辑、保存",
@@ -1542,7 +1772,7 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     desc: "提供 AI 草稿与人工编辑稿分屏对比，支持段落级批注与状态追踪。",
     tags: ["评审", "协作", "批注"],
     author: "王芳",
-    date: "2026-03-04",
+    date: "2026-03-19",
     userStory: "作为评审人，我希望在平台内完成对比和批注闭环，以便减少外部沟通成本。",
     acceptanceCriteria: [
       "支持分屏对比与高亮差异",
@@ -1564,7 +1794,7 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     desc: "确认提案后自动同步到 Git 仓库并回写 commit/PR 链接，驱动状态进入已提交列。",
     tags: ["Git", "状态回写", "提交流程"],
     author: "陈刚",
-    date: "2026-03-05",
+    date: "2026-03-20",
     userStory: "作为产品经理，我希望一键同步并回写结果，以便开发可直接基于提案开工。",
     acceptanceCriteria: [
       "支持 GitHub/GitLab 提交",
@@ -1595,7 +1825,7 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     desc: "在详情页提供历史需求推荐与外部参考链接管理，辅助需求分析和方案复用。",
     tags: ["参考资料", "推荐", "知识复用"],
     author: "张晓薇",
-    date: "2026-03-05",
+    date: "2026-03-21",
     userStory: "作为产品经理，我希望快速看到相似历史需求，以便减少重复设计。",
     acceptanceCriteria: [
       "按标签和优先级计算相似度",
@@ -1617,7 +1847,7 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     desc: "将 Skill 管理从单 prompt 升级为 SKILL.md + references + scripts 的结构化编辑体验，支持恢复默认模板。",
     tags: ["Skill", "配置", "可维护性"],
     author: "李明",
-    date: "2026-03-06",
+    date: "2026-03-22",
     userStory: "作为产品经理，我希望可视化管理每个 Skill 的结构化内容，以便快速调优 AI 行为。",
     acceptanceCriteria: [
       "支持 Skill 列表与文件结构切换",
@@ -2188,6 +2418,98 @@ function resolveSkillPrompt(skillId, card, extra = {}) {
     .replace(/\{\{message\}\}/g, extra.message || '');
 }
 
+function getSkillTemplateSource(skillId) {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('ai_skill_prompts') || '{}'); } catch {}
+  const entry = saved?.[skillId];
+  let customMarkdown = '';
+  if (typeof entry === 'string') customMarkdown = entry;
+  if (entry && typeof entry === 'object') {
+    if (typeof entry['SKILL.md'] === 'string') customMarkdown = entry['SKILL.md'];
+    if (entry.files && typeof entry.files['SKILL.md'] === 'string') customMarkdown = entry.files['SKILL.md'];
+  }
+  const hasCustom = Boolean(String(customMarkdown || '').trim());
+  return hasCustom ? 'custom' : 'default';
+}
+
+function buildChatMessageId(prefix = 'msg') {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getCardChatHistory(card, model) {
+  const historyKey = `chatHistory_${model}`;
+  const existing = card?.[historyKey] || (model === 'claude' ? card?.chatHistory || [] : []);
+  return { historyKey, history: Array.isArray(existing) ? existing : [] };
+}
+
+function buildChatHistoryPatch(model, historyKey, nextHistory) {
+  return model === 'claude'
+    ? { [historyKey]: nextHistory, chatHistory: nextHistory }
+    : { [historyKey]: nextHistory };
+}
+
+function replaceMessageById(history, messageId, nextMessage) {
+  const source = Array.isArray(history) ? history : [];
+  let matched = false;
+  const next = source.map((item) => {
+    if (item?.id !== messageId) return item;
+    matched = true;
+    return nextMessage;
+  });
+  if (!matched) return [...next, nextMessage];
+  return next;
+}
+
+function buildChatbotFallbackReply(card, message) {
+  const title = String(card?.title || '当前需求').trim();
+  const desc = String(card?.desc || '').trim();
+  const criteria = Array.isArray(card?.acceptanceCriteria) ? card.acceptanceCriteria.filter(Boolean) : [];
+  const asksRisk = /风险|risk|隐患|问题/i.test(String(message || ''));
+  const asksCriteria = /验收|标准|acceptance|测试|done/i.test(String(message || ''));
+
+  const riskBlock = asksRisk
+    ? [
+      '- 需求边界未显式定义，可能导致开发范围漂移。',
+      '- 缺少异常路径与失败回退描述，测试覆盖可能不完整。',
+      '- 验收口径未量化，交付后难以快速判定是否达标。',
+    ]
+    : [
+      '- 建议先补齐关键约束（时序、角色、异常分支）以降低返工。',
+      '- 建议在上线前定义可观测指标，避免“有功能但无效果评估”。',
+    ];
+
+  const criteriaBlock = asksCriteria
+    ? [
+      `- GIVEN 已进入「${title}」主流程 WHEN 用户提交有效输入 THEN 系统在 2 秒内返回可见结果。`,
+      '- GIVEN 外部依赖异常 WHEN 触发保存/提交 THEN 系统提示错误原因并允许重试。',
+      '- GIVEN 多角色协作 WHEN 状态变更 THEN 审批链与操作日志可追溯。',
+    ]
+    : criteria.slice(0, 3).map((c, i) => `- 验收点 ${i + 1}：${c}`);
+
+  return [
+    '⚠️ 以下为示例回复，非 AI 实时生成（用于演示流程）',
+    '',
+    `### 结论摘要`,
+    `围绕「${title}」，建议先完成需求边界与验收口径固化，再推进提案生成与评审闭环。`,
+    '',
+    '### 需求理解',
+    `- 目标主题：${title}`,
+    `- 当前描述：${desc || '暂无详细描述，建议补充业务背景与目标指标。'}`,
+    `- 用户问题：${String(message || '（空）').trim()}`,
+    '',
+    '### 风险提示',
+    ...riskBlock,
+    '',
+    '### 建议下一步',
+    '- 先补齐 3 条关键场景：主流程、异常流程、边界流程。',
+    '- 将验收标准改写为 GIVEN/WHEN/THEN，便于评审与测试执行。',
+    '- 形成一版可提交的 PRD 摘要后，再触发 OpenSpec proposal/design/spec/tasks 生成。',
+    '',
+    '### 可参考验收标准',
+    ...(criteriaBlock.length > 0 ? criteriaBlock : ['- 暂无现成验收条目，建议先补充业务约束后再生成。']),
+  ].join('\n');
+}
+
 async function callAIReview(card) {
   const prompt = resolveSkillPrompt('review', card);
   const text = await callAI(`${prompt}
@@ -2196,7 +2518,7 @@ async function callAIReview(card) {
 }
 
 const DOC_PROMPTS = {
-  prd: (card) => `你是资深产品经理。根据以下需求信息，生成标准PRD文档内容（Markdown格式）。
+  prd: (card, clarificationSummary = "") => `你是资深产品经理。根据以下需求信息，生成标准PRD文档内容（Markdown格式）。
 
 需求标题: ${card.title}
 需求描述: ${card.desc}
@@ -2254,7 +2576,10 @@ const DOC_PROMPTS = {
 
 [识别风险并提出应对措施]
 
-请直接输出Markdown内容，不要任何额外说明。`,
+请直接输出Markdown内容，不要任何额外说明。${clarificationSummary ? `
+
+用户已提供以下澄清信息，请优先参考：
+${clarificationSummary}` : ""}`,
 
   spec: (card) => `你是资深产品经理。根据以下需求信息，生成详细的需求规格说明文档（Markdown格式）。
 
@@ -2541,8 +2866,11 @@ ${card.acceptanceCriteria.map((c, i) => `${i + 1}. ${c}`).join("\n")}
 请直接输出Markdown内容，工时和任务标题请根据需求合理填写真实内容，不要使用占位符。`,
 };
 
-async function callAIDoc(card, docType) {
-  const prompt = resolveSkillPrompt(docType, card);
+async function callAIDoc(card, docType, clarificationSummary = "") {
+  let prompt = resolveSkillPrompt(docType, card);
+  if (docType === "prd" && clarificationSummary) {
+    prompt = `${prompt}\n\n用户已提供以下澄清信息，请优先参考：\n${clarificationSummary}`;
+  }
   const result = await callAI(prompt, 2000);
   if (typeof result === "string" && result.startsWith("❌")) {
     throw new Error(result.slice(2).trim());
@@ -2656,6 +2984,24 @@ function renderInline(text) {
     remaining = remaining.slice(first.index + first[0].length);
   }
   return <>{parts}</>;
+}
+
+function SafeMarkdown({ content, maxChars = 12000, fallbackStyle = {} }) {
+  const text = typeof content === 'string' ? content : String(content || '');
+  if (!text.trim()) return null;
+  if (text.length > maxChars) {
+    return (
+      <div style={{ ...fallbackStyle, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+        ⚠️ 内容较长，已切换为纯文本显示（{text.length} 字符）
+      </div>
+    );
+  }
+  try {
+    return <>{MarkdownRenderer({ content: text })}</>;
+  } catch (error) {
+    console.warn('[SafeMarkdown] fallback to plain text:', error);
+    return <div style={{ ...fallbackStyle, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{text}</div>;
+  }
 }
 
 /* ═══════════════════════════════ SHARED UI ═══════════════════════════════════ */
@@ -2837,6 +3183,107 @@ function ConfirmationDialog({
         <div style={{ padding: "14px 20px", borderTop: `1px solid ${C.border}`, background: C.white, display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.muted, cursor: "pointer", fontSize: 13 }}>稍后补充</button>
           <button onClick={onSubmit} style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: C.accent, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>确认补充并评审</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function PrdClarificationDialog({ visible, questions, loading, onSubmit, onSkip, onClose }) {
+  const [answers, setAnswers] = useState({});
+
+  useEffect(() => {
+    if (!visible) {
+      setAnswers({});
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  const hasAnyAnswer = Object.values(answers).some((value) => {
+    if (Array.isArray(value)) return value.length > 0;
+    return String(value || "").trim().length > 0;
+  });
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,14,18,0.45)", zIndex: 150 }} />
+      <div style={{ position: "fixed", left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: "min(520px,92vw)", maxHeight: "82vh", background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, zIndex: 151, boxShadow: "0 20px 60px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", padding: 24 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 19, fontWeight: 700, color: C.ink }}>📋 补充需求信息</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 6, lineHeight: 1.5 }}>AI 发现以下信息需要确认，选答后将用于生成更准确的 PRD</div>
+          </div>
+          <button onClick={onClose} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 22, color: C.muted, lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+
+        <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 14, paddingRight: 2 }}>
+          {loading ? (
+            <div style={{ fontSize: 13, color: C.muted, padding: "12px 8px" }}>
+              <span style={{ display: "inline-block", animation: "spin 1s linear infinite", marginRight: 6 }}>⟳</span>
+              正在分析需求并生成澄清问题...
+            </div>
+          ) : questions.map((q, idx) => (
+            <div key={q.id || idx} style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.cream, padding: "12px 12px" }}>
+              <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, marginBottom: 8, fontFamily: "'DM Mono',monospace" }}>Q{idx + 1}</div>
+              <div style={{ fontSize: 13, color: C.ink, marginBottom: 10, lineHeight: 1.5 }}>{q.text}</div>
+
+              {q.type === "choice" ? (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {(q.options || []).map((opt) => {
+                    const current = answers[q.id];
+                    const selected = q.multi ? Array.isArray(current) && current.includes(opt) : current === opt;
+                    return (
+                      <button
+                        key={opt}
+                        onClick={() => {
+                          setAnswers((prev) => {
+                            const next = { ...prev };
+                            if (q.multi) {
+                              const arr = Array.isArray(next[q.id]) ? [...next[q.id]] : [];
+                              next[q.id] = arr.includes(opt) ? arr.filter((x) => x !== opt) : [...arr, opt];
+                            } else {
+                              next[q.id] = opt;
+                            }
+                            return next;
+                          });
+                        }}
+                        style={{
+                          borderRadius: 14,
+                          border: selected ? `1px solid ${C.success}` : `1px solid ${C.border}`,
+                          background: selected ? C.success : C.white,
+                          color: selected ? "#fff" : C.ink,
+                          fontSize: 12,
+                          padding: "6px 10px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <textarea
+                  value={answers[q.id] || ""}
+                  onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                  placeholder={q.placeholder || "请补充说明"}
+                  style={{ width: "100%", minHeight: 60, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", fontSize: 12, resize: "vertical", boxSizing: "border-box", outline: "none", background: C.white }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginTop: 16, display: "flex", justifyContent: "space-between", gap: 10 }}>
+          <button onClick={onSkip} style={{ padding: "9px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.muted, cursor: "pointer", fontSize: 13 }}>跳过，直接生成</button>
+          <button
+            onClick={() => onSubmit(answers)}
+            disabled={!hasAnyAnswer || loading}
+            style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: (!hasAnyAnswer || loading) ? C.border : C.accent, color: (!hasAnyAnswer || loading) ? C.muted : "#fff", cursor: (!hasAnyAnswer || loading) ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600 }}
+          >
+            提交回答
+          </button>
         </div>
       </div>
     </>
@@ -3142,9 +3589,6 @@ function DetailDrawer({card,onClose,onAIReview,onAIDesign,reviewing,onMoveCard,s
 
             {!rawEditMode ? (
               <div>
-                {rawDisplay.isSample && (
-                  <div style={{marginBottom:8,fontSize:11,color:C.muted,fontWeight:600}}>示例内容（来自 PRD 摘录）</div>
-                )}
                 <div className="doc-content" style={{fontSize:13,color:C.ink,lineHeight:1.75,background:C.cream,padding:"14px 16px",borderRadius:8,border:`1px solid ${C.border}`}}>
                   <MarkdownRenderer content={rawDisplay.content} />
                 </div>
@@ -3845,27 +4289,228 @@ const PROPOSAL_DOC_TYPES = [
   { key:"tasks",    label:"Tasks",       icon:"✅" },
 ];
 
+const PROPOSAL_DOC_TYPE_KEYS = new Set(PROPOSAL_DOC_TYPES.map((docType) => docType.key));
+
+function isProposalDocType(docType) {
+  return PROPOSAL_DOC_TYPE_KEYS.has(docType);
+}
+
 const FILTER_CHIPS = [
-  { id: "focus",       label: "仅本需求" },
-  { id: "no-approved", label: "过滤已PR" },
-  { id: "no-locked",   label: "过滤已Lock" },
+  { id: "focus", label: "仅本需求" },
+  { id: "noApproved", label: "过滤已PR" },
+  { id: "noLocked", label: "过滤已Lock" },
+  { id: "hideProposals", label: "隐藏提案" },
 ];
 
-function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExpand, focusCardId, expandedProposals, onToggleProposal }) {
-  const [filters, setFilters] = useState(new Set());
-  const toggleFilter = (id) => setFilters(prev => {
-    const next = new Set(prev);
-    next.has(id) ? next.delete(id) : next.add(id);
-    return next;
-  });
+const DOC_TREE_FILTER_STORAGE_KEY = "doc-tree-filter-state";
+const DOC_TREE_DEFAULT_FILTERS = {
+  focus: false,
+  noApproved: false,
+  noLocked: false,
+  hideProposals: false,
+};
+
+function normalizeDocTreeFiltersState(raw) {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return {
+      focus: Boolean(raw.focus),
+      noApproved: Boolean(raw.noApproved ?? raw["no-approved"]),
+      noLocked: Boolean(raw.noLocked ?? raw["no-locked"]),
+      hideProposals: Boolean(raw.hideProposals),
+    };
+  }
+  if (Array.isArray(raw)) {
+    return {
+      focus: raw.includes("focus"),
+      noApproved: raw.includes("noApproved") || raw.includes("no-approved"),
+      noLocked: raw.includes("noLocked") || raw.includes("no-locked"),
+      hideProposals: raw.includes("hideProposals"),
+    };
+  }
+  return { ...DOC_TREE_DEFAULT_FILTERS };
+}
+
+function readDocTreeFiltersState() {
+  if (typeof window === "undefined") return { ...DOC_TREE_DEFAULT_FILTERS };
+  try {
+    const raw = localStorage.getItem(DOC_TREE_FILTER_STORAGE_KEY);
+    if (!raw) return { ...DOC_TREE_DEFAULT_FILTERS };
+    const parsed = JSON.parse(raw);
+    return normalizeDocTreeFiltersState(parsed);
+  } catch (error) {
+    console.warn("[DocTree] failed to parse filter state:", error);
+    return { ...DOC_TREE_DEFAULT_FILTERS };
+  }
+}
+
+const DOC_TREE_GROUP_UNASSIGNED = "未分配";
+const DOC_TREE_GROUP_DIMENSIONS = [
+  { id: "none", label: "不分组" },
+  { id: "space", label: "按空间" },
+  { id: "subsystem", label: "按子系统" },
+  { id: "app", label: "按应用" },
+  { id: "iteration", label: "按迭代" },
+  { id: "priority", label: "按优先级" },
+  { id: "status", label: "按状态" },
+  { id: "demander", label: "按提出人" },
+  { id: "productManager", label: "按受理人" },
+];
+const DOC_TREE_PRIORITY_ORDER = { P0: 0, P1: 1, P2: 2, P3: 3 };
+const DOC_TREE_STATUS_ORDER = COLUMNS.reduce((acc, column, index) => {
+  acc[column.id] = index;
+  return acc;
+}, {});
+const DOC_TREE_STATUS_LABEL = COLUMNS.reduce((acc, column) => {
+  acc[column.id] = column.label;
+  return acc;
+}, {});
+
+const DETAIL_LAYOUT_DEFAULT_LEFT_WIDTH = 260;
+const DETAIL_LAYOUT_DEFAULT_RIGHT_WIDTH = 320;
+const DETAIL_LAYOUT_LEFT_MIN = 220;
+const DETAIL_LAYOUT_LEFT_MAX = 420;
+const DETAIL_LAYOUT_RIGHT_MIN = 280;
+const DETAIL_LAYOUT_RIGHT_MAX = 520;
+const DETAIL_LAYOUT_CENTER_MIN = 520;
+const DETAIL_LAYOUT_CENTER_MIN_NARROW = 360;
+const DETAIL_LAYOUT_DRAG_MIN_VIEWPORT = 1100;
+const DETAIL_LAYOUT_STORAGE_KEY = 'detail_page_pane_widths_v1';
+
+function clampNumber(value, min, max) {
+  const safeMin = Number.isFinite(min) ? min : 0;
+  const safeMax = Number.isFinite(max) ? max : safeMin;
+  if (safeMax < safeMin) return safeMin;
+  return Math.min(safeMax, Math.max(safeMin, Number(value) || 0));
+}
+
+function getViewportWidth() {
+  if (typeof window === 'undefined') return 1440;
+  return Math.max(960, Math.round(window.innerWidth || 1440));
+}
+
+function getCenterMinByViewport(viewportWidth) {
+  return viewportWidth < DETAIL_LAYOUT_DRAG_MIN_VIEWPORT
+    ? DETAIL_LAYOUT_CENTER_MIN_NARROW
+    : DETAIL_LAYOUT_CENTER_MIN;
+}
+
+function clampLeftPaneWidth(leftWidth, rightWidth, viewportWidth) {
+  const centerMin = getCenterMinByViewport(viewportWidth);
+  const hardMax = Math.min(DETAIL_LAYOUT_LEFT_MAX, viewportWidth - DETAIL_LAYOUT_RIGHT_MIN - centerMin);
+  const dynamicMax = Math.min(hardMax, viewportWidth - rightWidth - centerMin);
+  return clampNumber(leftWidth, DETAIL_LAYOUT_LEFT_MIN, Math.max(DETAIL_LAYOUT_LEFT_MIN, dynamicMax));
+}
+
+function clampRightPaneWidth(rightWidth, leftWidth, viewportWidth) {
+  const centerMin = getCenterMinByViewport(viewportWidth);
+  const hardMax = Math.min(DETAIL_LAYOUT_RIGHT_MAX, viewportWidth - DETAIL_LAYOUT_LEFT_MIN - centerMin);
+  const dynamicMax = Math.min(hardMax, viewportWidth - leftWidth - centerMin);
+  return clampNumber(rightWidth, DETAIL_LAYOUT_RIGHT_MIN, Math.max(DETAIL_LAYOUT_RIGHT_MIN, dynamicMax));
+}
+
+function readDetailLayoutWidths() {
+  const fallback = { left: DETAIL_LAYOUT_DEFAULT_LEFT_WIDTH, right: DETAIL_LAYOUT_DEFAULT_RIGHT_WIDTH };
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = localStorage.getItem(DETAIL_LAYOUT_STORAGE_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    const left = Number(parsed?.left);
+    const right = Number(parsed?.right);
+    return {
+      left: Number.isFinite(left) ? left : fallback.left,
+      right: Number.isFinite(right) ? right : fallback.right,
+    };
+  } catch (error) {
+    console.warn('[DetailLayout] failed to parse pane widths:', error);
+    return fallback;
+  }
+}
+
+function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExpand, focusCardId, expandedProposals, onToggleProposal, width }) {
+  const [filters, setFilters] = useState(() => readDocTreeFiltersState());
+  const [groupBy, setGroupBy] = useState("none");
+  const [expandedGroups, setExpandedGroups] = useState(new Set());
+  const toggleFilter = (id) => setFilters(prev => ({ ...prev, [id]: !prev[id] }));
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(DOC_TREE_FILTER_STORAGE_KEY, JSON.stringify(filters));
+  }, [filters]);
+
+  const normalizeGroupLabel = (value) => {
+    const safeValue = String(value ?? "").trim();
+    return safeValue || DOC_TREE_GROUP_UNASSIGNED;
+  };
 
   // 计算 visibleCards（AND 逻辑）
-  const visibleCards = cards.filter(card => {
-    if (filters.has("focus") && focusCardId && card.id !== focusCardId) return false;
-    if (filters.has("no-approved") && ["approved", "submitted"].includes(card.col)) return false;
-    if (filters.has("no-locked") && DONE_COLS.includes(card.col)) return false;
+  const visibleCards = useMemo(() => cards.filter(card => {
+    if (filters.focus && focusCardId && card.id !== focusCardId) return false;
+    if (filters.noApproved && ["approved", "submitted"].includes(card.col)) return false;
+    if (filters.noLocked && DONE_COLS.includes(card.col)) return false;
     return true;
-  });
+  }), [cards, filters, focusCardId]);
+
+  const groupedCards = useMemo(() => {
+    if (groupBy === "none") return [];
+    const groups = new Map();
+
+    visibleCards.forEach(card => {
+      let label = "";
+      let sortToken = Number.MAX_SAFE_INTEGER;
+
+      if (groupBy === "priority") {
+        label = normalizeGroupLabel(card.priority);
+        sortToken = DOC_TREE_PRIORITY_ORDER[label] ?? Number.MAX_SAFE_INTEGER;
+      } else if (groupBy === "status") {
+        const colId = String(card.col || "").trim();
+        label = normalizeGroupLabel(DOC_TREE_STATUS_LABEL[colId] || colId);
+        sortToken = DOC_TREE_STATUS_ORDER[colId] ?? Number.MAX_SAFE_INTEGER;
+      } else if (groupBy === "iteration") {
+        label = normalizeGroupLabel(card.iteration);
+        const digits = parseInt(label.replace(/\D/g, ""), 10);
+        sortToken = Number.isNaN(digits) ? Number.MIN_SAFE_INTEGER : digits;
+      } else {
+        label = normalizeGroupLabel(card[groupBy]);
+      }
+
+      const groupId = `${groupBy}:${label}`;
+      if (!groups.has(groupId)) {
+        groups.set(groupId, { id: groupId, label, sortToken, cards: [] });
+      }
+      groups.get(groupId).cards.push(card);
+    });
+
+    const entries = Array.from(groups.values()).filter(group => group.cards.length > 0);
+    entries.forEach(group => {
+      group.cards.sort((a, b) => String(a.id || "").localeCompare(String(b.id || ""), "zh-Hans-CN"));
+    });
+
+    entries.sort((a, b) => {
+      if (a.label === DOC_TREE_GROUP_UNASSIGNED && b.label !== DOC_TREE_GROUP_UNASSIGNED) return 1;
+      if (b.label === DOC_TREE_GROUP_UNASSIGNED && a.label !== DOC_TREE_GROUP_UNASSIGNED) return -1;
+
+      if (groupBy === "iteration") {
+        const sortResult = b.sortToken - a.sortToken;
+        if (sortResult !== 0) return sortResult;
+      } else if (groupBy === "priority" || groupBy === "status") {
+        const sortResult = a.sortToken - b.sortToken;
+        if (sortResult !== 0) return sortResult;
+      }
+
+      return a.label.localeCompare(b.label, "zh-Hans-CN");
+    });
+
+    return entries;
+  }, [groupBy, visibleCards]);
+
+  const toggleGroup = (groupId) => {
+    setExpandedGroups(prev => {
+      const next = prev.size === 0 ? new Set(groupedCards.map(group => group.id)) : new Set(prev);
+      next.has(groupId) ? next.delete(groupId) : next.add(groupId);
+      return next;
+    });
+  };
 
   const TreeItem = ({ label, icon, active, onClick, indent = 0, hasDoc, isCommitted }) => (
     <div onClick={onClick}
@@ -3880,14 +4525,16 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
     </div>
   );
 
-  const FolderItem = ({ label, open, onToggle, count }) => (
+  const FolderItem = ({ label, open, onToggle, count, subtitle, indent = 0 }) => (
     <div onClick={onToggle}
-      style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",cursor:"pointer",userSelect:"none",margin:"2px 4px",borderRadius:4,transition:"background 0.15s"}}
+      style={{display:"flex",alignItems:"center",gap:6,padding:`6px ${12 + indent * 16}px`,cursor:"pointer",userSelect:"none",margin:"2px 4px",borderRadius:4,transition:"background 0.15s"}}
       onMouseEnter={e => e.currentTarget.style.background = C.sbHover}
       onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
       <span style={{fontSize:10,color:C.sbMuted,transition:"transform 0.15s",display:"inline-block",transform:open ? "rotate(90deg)" : "rotate(0deg)"}}>▶</span>
-      <span style={{fontSize:12,color:open ? "#f5a97f" : C.sbText,flex:1}}>{open ? "📂" : "📁"} {label}</span>
-      {count > 0 && <span style={{fontSize:9,padding:"1px 5px",background:"#313150",color:C.sbMuted,borderRadius:3,fontFamily:"'DM Mono',monospace"}}>{count}</span>}
+      <span style={{fontSize:12,color:open ? "#f5a97f" : C.sbText,flexShrink:0}}>{open ? "📂" : "📁"} {label}</span>
+      {subtitle && <span title={subtitle} style={{fontSize:11,color:C.sbMuted,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{subtitle}</span>}
+      {!subtitle && <span style={{flex:1}}/>}
+      {count > 0 && <span style={{fontSize:9,padding:"1px 5px",background:"#313150",color:C.sbMuted,borderRadius:3,fontFamily:"'DM Mono',monospace",flexShrink:0}}>{count}</span>}
     </div>
   );
 
@@ -3895,8 +4542,8 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
   const ProposalFolder = ({ cardId, proposal, indent = 2 }) => {
     const isOpen = expandedProposals?.has(proposal.id) ?? false;
     const completedDocs = PROPOSAL_DOC_TYPES.filter(dt => proposal[dt.key]).length;
-    const committedCount = PROPOSAL_DOC_TYPES.filter(dt => proposal[dt.key] && proposal.gitStatus?.[dt.key]).length;
-    const allCommitted = completedDocs > 0 && committedCount === completedDocs;
+    const gitSummary = summarizeProposalGitStatus(proposal);
+    const allCommitted = gitSummary.allCommitted;
     return (
       <div>
         <div onClick={() => onToggleProposal?.(proposal.id)}
@@ -3907,20 +4554,21 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
           <span style={{fontSize:12,color:isOpen?"#cba6f7":C.sbText,flex:1}}>{isOpen?"📂":"📁"} {proposal.name}</span>
           {allCommitted
             ? <span style={{fontSize:9,padding:"1px 5px",background:"#1a3a28",color:"#a6e3a1",borderRadius:3,fontWeight:700}}>✓ Git</span>
-            : committedCount > 0
-              ? <span style={{fontSize:9,padding:"1px 5px",background:"#313150",color:"#a6e3a1",borderRadius:3,fontFamily:"'DM Mono',monospace"}}>{committedCount}/{completedDocs}</span>
+            : gitSummary.partial
+              ? <span style={{fontSize:9,padding:"1px 5px",background:"#313150",color:"#a6e3a1",borderRadius:3,fontFamily:"'DM Mono',monospace"}}>{gitSummary.successTargets}/{gitSummary.totalTargets}</span>
               : completedDocs > 0
                 ? <span style={{fontSize:9,padding:"1px 5px",background:"#313150",color:C.sbMuted,borderRadius:3,fontFamily:"'DM Mono',monospace"}}>{completedDocs}</span>
                 : null}
         </div>
         {isOpen && PROPOSAL_DOC_TYPES.map(dt => {
+          if (filters.hideProposals && isProposalDocType(dt.key)) return null;
           const key = `${cardId}:p:${proposal.id}:${dt.key}`;
           return (
             <TreeItem key={dt.key} label={dt.label} icon={dt.icon} indent={indent + 1}
               active={selectedKey === key}
               onClick={() => onSelectKey(key)}
               hasDoc={!!proposal[dt.key]}
-              isCommitted={!!proposal.gitStatus?.[dt.key]}
+              isCommitted={hasDocGitSuccess(proposal.gitStatus, dt.key)}
             />
           );
         })}
@@ -3928,13 +4576,71 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
     );
   };
 
+  const renderCardTree = (card, cardIndent = 0) => {
+    const isExpanded = expanded[card.id];
+    const normDocs = normalizeDocs(card.docs);
+    const proposals = normDocs.proposals || [];
+    const rawDocCount = (typeof card.rawRequirement === 'string' && card.rawRequirement.trim()) ? 1 : 0;
+    const completedCount = rawDocCount + (normDocs.prd ? 1 : 0) + proposals.reduce((sum, proposal) => {
+      return sum + PROPOSAL_DOC_TYPES.reduce((docSum, docType) => {
+        if (filters.hideProposals && isProposalDocType(docType.key)) return docSum;
+        return docSum + (proposal[docType.key] ? 1 : 0);
+      }, 0);
+    }, 0);
+
+    return (
+      <div key={card.id} style={{marginBottom:4}}>
+        <FolderItem
+          label={<span><span style={{fontSize:9,padding:"1px 4px",background:`${priorityColor(card.priority)}22`,color:priorityColor(card.priority),borderRadius:2,marginRight:5,fontFamily:"'DM Mono',monospace"}}>{card.priority}</span>{card.id}</span>}
+          open={isExpanded}
+          onToggle={() => onToggleExpand(card.id)}
+          count={completedCount}
+          subtitle={card.title}
+          indent={cardIndent}
+        />
+        {isExpanded && (
+          <div>
+            <div style={{padding:`2px 8px 6px ${20 + cardIndent * 16}px`}}>
+              <div style={{fontSize:11,color:C.sbMuted,lineHeight:1.3,paddingLeft:8,borderLeft:`2px solid #313150`}}>
+                {card.title.length > 20 ? card.title.slice(0, 20) + "…" : card.title}
+              </div>
+            </div>
+
+            <TreeItem label="原始需求" icon="🧾" indent={cardIndent + 1}
+              active={selectedKey === `${card.id}:raw`}
+              onClick={() => onSelectKey(`${card.id}:raw`)}
+              hasDoc={typeof card.rawRequirement === 'string' && card.rawRequirement.trim()}
+            />
+
+            <TreeItem label="产品需求 SPEC" icon="📋" indent={cardIndent + 1}
+              active={selectedKey === `${card.id}:prd`}
+              onClick={() => onSelectKey(`${card.id}:prd`)}
+              hasDoc={!!normDocs.prd}
+            />
+
+            {!filters.hideProposals && proposals.length > 0 && (
+              <div>
+                <div style={{padding:`4px ${12 + (cardIndent + 1) * 16}px 2px`,fontSize:10,color:C.sbMuted,letterSpacing:1,textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>
+                  OpenSpec 提案
+                </div>
+                {proposals.map(proposal => (
+                  <ProposalFolder key={proposal.id} cardId={card.id} proposal={proposal} indent={cardIndent + 1} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div style={{width:260,background:C.sb,borderRight:"1px solid #252535",overflowY:"auto",flexShrink:0,padding:"12px 0"}}>
+    <div style={{width:width || DETAIL_LAYOUT_DEFAULT_LEFT_WIDTH,background:C.sb,borderRight:"1px solid #252535",overflowY:"auto",flexShrink:0,padding:"12px 0"}}>
       <div style={{padding:"0 12px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <span style={{fontSize:10,color:C.sbMuted,letterSpacing:2,fontFamily:"'DM Mono',monospace",textTransform:"uppercase"}}>文档库</span>
         <div style={{display:"flex",gap:4}}>
           {FILTER_CHIPS.map(chip => {
-            const active = filters.has(chip.id);
+            const active = Boolean(filters[chip.id]);
             return (
               <button key={chip.id} onClick={() => toggleFilter(chip.id)}
                 style={{fontSize:10,padding:"2px 7px",borderRadius:10,border:"none",cursor:"pointer",
@@ -3947,64 +4653,44 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
           })}
         </div>
       </div>
-      {visibleCards.map(card => {
-        const isExpanded = expanded[card.id];
-        const normDocs = normalizeDocs(card.docs);
-        const proposals = normDocs.proposals || [];
-        const rawDocCount = (typeof card.rawRequirement === 'string' && card.rawRequirement.trim()) ? 1 : 0;
-        const completedCount = rawDocCount + (normDocs.prd ? 1 : 0) + proposals.reduce((sum, p) => sum + PROPOSAL_DOC_TYPES.filter(dt => p[dt.key]).length, 0);
-
-        return (
-          <div key={card.id} style={{marginBottom:4}}>
-            {/* 需求卡片文件夹 */}
-            <FolderItem
-              label={<span><span style={{fontSize:9,padding:"1px 4px",background:`${priorityColor(card.priority)}22`,color:priorityColor(card.priority),borderRadius:2,marginRight:5,fontFamily:"'DM Mono',monospace"}}>{card.priority}</span>{card.id}</span>}
-              open={isExpanded}
-              onToggle={() => onToggleExpand(card.id)}
-              count={completedCount}
-            />
-            {isExpanded && (
-              <div>
-                <div style={{padding:"2px 8px 6px 20px"}}>
-                  <div style={{fontSize:11,color:C.sbMuted,lineHeight:1.3,paddingLeft:8,borderLeft:`2px solid #313150`}}>
-                    {card.title.length > 20 ? card.title.slice(0, 20) + "…" : card.title}
-                  </div>
-                </div>
-
-                <TreeItem label="原始需求" icon="🧾" indent={1}
-                  active={selectedKey === `${card.id}:raw`}
-                  onClick={() => onSelectKey(`${card.id}:raw`)}
-                  hasDoc={typeof card.rawRequirement === 'string' && card.rawRequirement.trim()}
-                />
-
-                {/* 📋 产品需求 SPEC (PRD) - 始终显示 */}
-                <TreeItem label="产品需求 SPEC" icon="📋" indent={1}
-                  active={selectedKey === `${card.id}:prd`}
-                  onClick={() => onSelectKey(`${card.id}:prd`)}
-                  hasDoc={!!normDocs.prd}
-                />
-
-                {proposals.length > 0 && (
-                  <div>
-                    <div style={{padding:`4px ${12 + 16}px 2px`,fontSize:10,color:C.sbMuted,letterSpacing:1,textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>
-                      OpenSpec 提案
-                    </div>
-                    {proposals.map(p => (
-                      <ProposalFolder key={p.id} cardId={card.id} proposal={p} indent={1} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      <div style={{padding:"0 12px 10px"}}>
+        <select
+          value={groupBy}
+          onChange={(e) => {
+            setGroupBy(e.target.value);
+            setExpandedGroups(new Set());
+          }}
+          style={{width:"100%",height:28,background:C.sbHover,color:C.sbText,border:"1px solid #34344a",borderRadius:6,padding:"0 8px",fontSize:12,cursor:"pointer",outline:"none"}}
+        >
+          {DOC_TREE_GROUP_DIMENSIONS.map(option => (
+            <option key={option.id} value={option.id}>{option.label}</option>
+          ))}
+        </select>
+      </div>
+      {groupBy === "none" ? (
+        visibleCards.map(card => renderCardTree(card, 0))
+      ) : (
+        groupedCards.map(group => {
+          const isGroupExpanded = expandedGroups.size === 0 || expandedGroups.has(group.id);
+          return (
+            <div key={group.id} style={{marginBottom:4}}>
+              <FolderItem
+                label={`🗂 ${group.label}`}
+                open={isGroupExpanded}
+                onToggle={() => toggleGroup(group.id)}
+                count={group.cards.length}
+              />
+              {isGroupExpanded && group.cards.map(card => renderCardTree(card, 1))}
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }
 
 // ── DocEditor ──
-function DocEditor({ card, docType, proposalName, content, editMode, editText, onEditMode, onSaveEdit, onCancelEdit, onEditTextChange, onGenerate, isGenerating, projectConfig, onNavigateToSettings, onGenerateProposal, hasProposals, onCommitSuccess, gitStatusUrl }) {
+function DocEditor({ card, docType, proposalName, content, editMode, editText, onEditMode, onSaveEdit, onCancelEdit, onEditTextChange, onGenerate, isGenerating, isClarificationLoading, projectConfig, onNavigateToSettings, onGenerateProposal, onOpenClarificationDemo, hasProposals, onCommitSuccess, gitStatusSummary }) {
   const docMeta = DOC_TYPES.find(d => d.key === docType) || PROPOSAL_DOC_TYPES.find(d => d.key === docType);
   const isRawDoc = docType === 'raw';
   const rawRequirement = typeof card?.rawRequirement === 'string' ? card.rawRequirement : '';
@@ -4027,12 +4713,12 @@ function DocEditor({ card, docType, proposalName, content, editMode, editText, o
     }
     tripleClickTimer.current = setTimeout(() => { tripleClickCount.current = 0; }, 500);
   };
-  const [commitResult, setCommitResult] = useState(null); // null | { ok, msg, url }
+  const [commitResult, setCommitResult] = useState(null); // null | { ok, msg, links, failedProfileIds, results }
 
   const handleCommit = async () => {
     if (!content) return;
-    const git = projectConfig?.git;
-    if (!git?.repoUrl || !git?.token) {
+    const targetProfiles = resolveTargetGitProfiles(card, projectConfig?.git);
+    if (!targetProfiles.length) {
       setCommitResult({ ok: false, msg: '未配置 Git 仓库，请先前往项目配置页面完善配置。', toSettings: true });
       return;
     }
@@ -4047,11 +4733,54 @@ function DocEditor({ card, docType, proposalName, content, editMode, editText, o
         const proposalId = proposalName ? proposalName.toLowerCase().replace(/\s+/g, '-') : 'default';
         filePath = `docs/requirements/${reqId}/proposals/${proposalId}/${docType}.md`;
       }
-      const url = await commitDocToGit(filePath, content, `docs(${card.id}): update ${docType}`, git);
-      setCommitResult({ ok: true, msg: '提交成功', url });
-      onCommitSuccess && onCommitSuccess({ docType, url });
+      const settled = await Promise.allSettled(
+        targetProfiles.map((profile) =>
+          commitDocToGit(filePath, content, `docs(${card.id}): update ${docType}`, profile)
+            .then((url) => ({ profileId: profile.id, ok: true, url, committedAt: new Date().toISOString() }))
+            .catch((error) => ({ profileId: profile.id, ok: false, error: error?.message || '提交失败', committedAt: new Date().toISOString() }))
+        )
+      );
+      const results = settled.map((item) => (item.status === 'fulfilled' ? item.value : { ok: false, profileId: 'unknown', error: '提交失败' }));
+      const success = results.filter((item) => item.ok);
+      const failed = results.filter((item) => !item.ok);
+      if (success.length === 0) {
+        setCommitResult({ ok: false, msg: failed[0]?.error || '提交失败', failedProfileIds: failed.map((item) => item.profileId), results });
+      } else {
+        setCommitResult({ ok: true, partial: failed.length > 0, msg: failed.length === 0 ? '提交成功' : `部分成功：${success.length}/${results.length}`, links: success, failedProfileIds: failed.map((item) => item.profileId), results });
+      }
+      onCommitSuccess && onCommitSuccess({ docType, results });
     } catch (e) {
       setCommitResult({ ok: false, msg: e.message || '提交失败', toSettings: false });
+    }
+    setCommitting(false);
+  };
+
+  const handleRetryFailed = async () => {
+    if (!content || !commitResult?.failedProfileIds?.length) return;
+    const targetProfiles = resolveTargetGitProfiles(card, projectConfig?.git)
+      .filter((profile) => commitResult.failedProfileIds.includes(profile.id));
+    if (!targetProfiles.length) return;
+    setCommitting(true);
+    try {
+      const reqId = card.id.toLowerCase();
+      const filePath = docType === 'prd'
+        ? `docs/requirements/${reqId}/prd.md`
+        : `docs/requirements/${reqId}/proposals/${(proposalName ? proposalName.toLowerCase().replace(/\s+/g, '-') : 'default')}/${docType}.md`;
+      const settled = await Promise.allSettled(
+        targetProfiles.map((profile) =>
+          commitDocToGit(filePath, content, `docs(${card.id}): retry ${docType}`, profile)
+            .then((url) => ({ profileId: profile.id, ok: true, url, committedAt: new Date().toISOString() }))
+            .catch((error) => ({ profileId: profile.id, ok: false, error: error?.message || '提交失败', committedAt: new Date().toISOString() }))
+        )
+      );
+      const retryResults = settled.map((item) => (item.status === 'fulfilled' ? item.value : { ok: false, profileId: 'unknown', error: '提交失败' }));
+      const merged = [...(commitResult.results || []).filter((item) => !commitResult.failedProfileIds.includes(item.profileId)), ...retryResults];
+      const success = merged.filter((item) => item.ok);
+      const failed = merged.filter((item) => !item.ok);
+      setCommitResult({ ok: success.length > 0, partial: failed.length > 0, msg: failed.length === 0 ? '重试后全部成功' : `重试后部分成功：${success.length}/${merged.length}`, links: success, failedProfileIds: failed.map((item) => item.profileId), results: merged });
+      onCommitSuccess && onCommitSuccess({ docType, results: retryResults });
+    } catch (error) {
+      setCommitResult({ ok: false, msg: error?.message || '重试失败', failedProfileIds: commitResult.failedProfileIds, results: commitResult.results });
     }
     setCommitting(false);
   };
@@ -4059,7 +4788,7 @@ function DocEditor({ card, docType, proposalName, content, editMode, editText, o
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:C.white}}>
       {/* Header */}
-      <div style={{borderBottom:`1px solid ${C.border}`,padding:"0 20px",display:"flex",alignItems:"center",gap:0,background:C.cream,flexShrink:0,height:44}}>
+      <div style={{borderBottom:`1px solid ${C.border}`,padding:"4px 20px",display:"flex",alignItems:"center",gap:0,background:C.cream,flexShrink:0,minHeight:44}}>
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"0 12px 0 0",borderRight:`1px solid ${C.border}`,height:"100%"}}>
           <span style={{fontSize:14}}>{docMeta?.icon}</span>
           {proposalName && (
@@ -4071,8 +4800,12 @@ function DocEditor({ card, docType, proposalName, content, editMode, editText, o
           <span style={{fontSize:13,fontWeight:600,color:C.ink}}>{docMeta?.label}</span>
           {hasDocContent && <span style={{width:6,height:6,borderRadius:"50%",background:"#a6e3a1",marginLeft:4}}/>}
         </div>
-        <div style={{padding:"0 12px",fontSize:12,color:C.muted,flex:1}}>
-          {card?.id} · {card?.title?.slice(0,25)}{card?.title?.length > 25 ? "…" : ""}
+        <div style={{padding:"0 12px",fontSize:12,color:C.muted,flex:1,minWidth:0,display:"flex",alignItems:"center",gap:8,overflow:"hidden"}}>
+          <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.muted,flexShrink:0}}>{card?.id}</span>
+          <span style={{color:C.border,flexShrink:0}}>·</span>
+          <span title={card?.title || ''} style={{fontSize:12,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+            {card?.title || '未命名需求'}
+          </span>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           {!isRawDoc && content && !editMode && (
@@ -4111,12 +4844,18 @@ function DocEditor({ card, docType, proposalName, content, editMode, editText, o
           borderBottom:`1px solid ${commitResult.ok ? C.success : C.danger}33`,
           color:commitResult.ok ? C.success : C.danger}}>
           {commitResult.ok ? "✓" : "✗"} {commitResult.msg}
-          {commitResult.ok && commitResult.url && (
-            <a href={commitResult.url} target="_blank" rel="noreferrer" style={{color:C.accent,fontSize:11,marginLeft:4}}>查看 Commit →</a>
-          )}
+          {Array.isArray(commitResult.links) && commitResult.links.map((item) => (
+            <a key={item.profileId} href={item.url} target="_blank" rel="noreferrer" style={{color:C.accent,fontSize:11,marginLeft:4}}>{item.profileId} →</a>
+          ))}
           {!commitResult.ok && commitResult.toSettings && onNavigateToSettings && (
             <button onClick={onNavigateToSettings} style={{marginLeft:4,padding:"2px 10px",background:"none",border:`1px solid ${C.accent}`,borderRadius:4,cursor:"pointer",fontSize:11,color:C.accent}}>
               前往配置
+            </button>
+          )}
+          {Array.isArray(commitResult.failedProfileIds) && commitResult.failedProfileIds.length > 0 && (
+            <button onClick={handleRetryFailed} disabled={committing}
+              style={{marginLeft:4,padding:"2px 10px",background:"none",border:`1px solid ${C.warn}`,borderRadius:4,cursor:committing?"not-allowed":"pointer",fontSize:11,color:C.warn,opacity:committing?0.6:1}}>
+              重试失败仓库
             </button>
           )}
           <button onClick={()=>setCommitResult(null)} style={{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"inherit",opacity:0.6}}>✕</button>
@@ -4124,10 +4863,12 @@ function DocEditor({ card, docType, proposalName, content, editMode, editText, o
       )}
 
       {/* Persistent git status */}
-      {gitStatusUrl && !commitResult && (
+      {gitStatusSummary?.successCount > 0 && !commitResult && (
         <div style={{padding:"5px 20px",fontSize:11,display:"flex",alignItems:"center",gap:6,background:C.successLight,borderBottom:`1px solid ${C.success}33`,color:C.success}}>
-          ✓ 已提交到 Git
-          <a href={gitStatusUrl} target="_blank" rel="noreferrer" style={{color:C.accent,fontSize:11,marginLeft:2}}>查看 Commit →</a>
+          ✓ 已提交到 Git（{gitStatusSummary.successCount}/{gitStatusSummary.totalCount}）
+          {(gitStatusSummary.links || []).map((item) => (
+            <a key={item.profileId} href={item.url} target="_blank" rel="noreferrer" style={{color:C.accent,fontSize:11,marginLeft:2}}>{item.profileId} →</a>
+          ))}
         </div>
       )}
 
@@ -4167,10 +4908,9 @@ function DocEditor({ card, docType, proposalName, content, editMode, editText, o
             </div>
 
             <div style={{fontSize:12,fontWeight:700,color:C.muted,marginBottom:8}}>原始需求内容（只读）</div>
-            {rawDisplay.isSample && (
-              <div style={{marginBottom:8,fontSize:11,color:C.muted,fontWeight:600}}>示例内容（来自 PRD 摘录）</div>
-            )}
-            <div style={{fontSize:13,color:C.ink,lineHeight:1.75,whiteSpace:"pre-wrap",background:C.cream,padding:"14px 16px",borderRadius:8,border:`1px solid ${C.border}`}}>{rawDisplay.content}</div>
+            <div className="doc-content" style={{fontSize:13,color:C.ink,lineHeight:1.75,background:C.cream,padding:"14px 16px",borderRadius:8,border:`1px solid ${C.border}`}}>
+              <MarkdownRenderer content={rawDisplay.content} />
+            </div>
           </div>
         ) : !content ? (
           <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100%",padding:60,textAlign:"center"}}>
@@ -4184,14 +4924,24 @@ function DocEditor({ card, docType, proposalName, content, editMode, editText, o
                 <button onClick={onGenerate} disabled={isGenerating}
                   style={{padding:"12px 28px",borderRadius:8,border:"none",cursor:isGenerating ? "wait" : "pointer",background:isGenerating ? C.border : C.purple,color:isGenerating ? C.muted : "#fff",fontWeight:600,fontSize:14,display:"flex",alignItems:"center",gap:8}}>
                   {isGenerating
-                    ? <><span style={{display:"inline-block",animation:"spin 1s linear infinite"}}>⟳</span> AI 生成中…</>
+                    ? <><span style={{display:"inline-block",animation:"spin 1s linear infinite"}}>⟳</span> {(docType === 'prd' && isClarificationLoading) ? '分析中…' : 'AI 生成中…'}</>
                     : <><span style={{fontSize:16}}>✦</span> AI 生成 {docMeta?.label}</>}
                 </button>
                 {docType === 'prd' && onGenerateProposal && (
-                  <button disabled
-                    style={{marginTop:10,padding:"8px 20px",borderRadius:8,border:`1px solid ${C.border}`,cursor:"not-allowed",background:C.cream,color:C.muted,fontWeight:500,fontSize:12,display:"flex",alignItems:"center",gap:6,opacity:0.6}}>
-                    + 生成提案（请先生成 PRD）
-                  </button>
+                  <>
+                    <button disabled
+                      style={{marginTop:10,padding:"8px 20px",borderRadius:8,border:`1px solid ${C.border}`,cursor:"not-allowed",background:C.cream,color:C.muted,fontWeight:500,fontSize:12,display:"flex",alignItems:"center",gap:6,opacity:0.6}}>
+                      + 生成提案（请先生成 PRD）
+                    </button>
+                    {onOpenClarificationDemo && (
+                      <button onClick={onOpenClarificationDemo}
+                        style={{marginTop:8,padding:0,border:"none",background:"none",cursor:"pointer",fontSize:11,color:C.muted,lineHeight:1.2,textDecoration:"underline"}}
+                        onMouseEnter={e=>e.currentTarget.style.color=C.accent}
+                        onMouseLeave={e=>e.currentTarget.style.color=C.muted}>
+                        功能演示
+                      </button>
+                    )}
+                  </>
                 )}
               </>
           </div>
@@ -4218,17 +4968,38 @@ function DocEditor({ card, docType, proposalName, content, editMode, editText, o
 function ChatbotPanel({ card, onSendMessage }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [inputMode, setInputMode] = useState('preview');
+  const [expandedTrace, setExpandedTrace] = useState({});
+  const [expandedTraceSkill, setExpandedTraceSkill] = useState({});
   const messagesEndRef = useRef(null);
   const currentModel = localStorage.getItem('ai_model_selected') || 'claude';
   const historyKey = `chatHistory_${currentModel}`;
   // 迁移兼容：如果是 claude 模式且存在旧版历史，优先用旧版直到新消息写入
   const chatHistory = card?.[historyKey] ?? (currentModel === 'claude' ? card?.chatHistory : null) ?? [];
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [chatHistory.length]);
+
   const handleSend = async () => {
     if (!input.trim() || loading) return;
-    setLoading(true);
-    await onSendMessage(input, "chatbot");
+    const message = input;
     setInput("");
+    setInputMode('preview');
+    setLoading(true);
+    await onSendMessage(message, "chatbot");
+    setLoading(false);
+  };
+
+  const handleRetry = async (msg) => {
+    const originMessage = String(msg?.meta?.userMessage || '').trim();
+    if (!originMessage || loading) return;
+    setLoading(true);
+    await onSendMessage(originMessage, "chatbot", {
+      retryMessageId: msg.id,
+      requestId: msg?.meta?.requestId,
+      isRetry: true,
+    });
     setLoading(false);
   };
 
@@ -4267,49 +5038,201 @@ function ChatbotPanel({ card, onSendMessage }) {
           </ul>
         </div>
 
-        {chatHistory.map((msg, i) => (
-          <div key={i} style={{marginBottom:10}}>
+        {chatHistory.map((msg, i) => {
+          const messageId = msg?.id || `${i}`;
+          const msgType = msg?.type || 'normal';
+          const isThinking = msgType === 'thinking' || msg?.status === 'pending';
+          const isDemo = msgType === 'demo' || msg?.status === 'fallback' || msg?.source === 'fallback';
+          const isError = msgType === 'error' || msg?.status === 'failed';
+          const trace = msg?.trace;
+          const traceExpanded = Boolean(expandedTrace[messageId]);
+          const traceSummaryText = trace?.summary
+            || `思考过程（调用 ${trace?.skillCount ?? 0} 个 Skill）`;
+
+          return (<div key={messageId} style={{marginBottom:10}}>
             {msg.role === "user" ? (
               <div style={{display:"flex",justifyContent:"flex-end"}}>
                 <div style={{background:C.accent,color:"#fff",padding:"8px 12px",borderRadius:12,fontSize:12,maxWidth:"85%",lineHeight:1.5}}>
                   {msg.content}
                 </div>
               </div>
+            ) : msg.type === "clarification_summary" && Array.isArray(msg.qaPairs) ? (
+              <div style={{background:"#f7f6f2",border:`1px solid ${C.border}`,padding:"10px 12px",borderRadius:10,fontSize:12,color:C.ink,lineHeight:1.6,boxShadow:"0 1px 2px rgba(15,23,42,0.04)"}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,fontFamily:"'DM Mono',monospace",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
+                  <span>🧩</span>
+                  <span>{msg.title || "需求澄清记录"}</span>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {msg.qaPairs.map((pair, idx) => (
+                    <div key={pair.id || `${i}-${idx}`} style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",borderLeft:`3px solid ${C.accentLight}`}}>
+                      <div style={{fontSize:11,color:C.muted,fontWeight:700,marginBottom:4,fontFamily:"'DM Mono',monospace"}}>
+                        Q{idx + 1} · {pair.question}
+                      </div>
+                      <div style={{fontSize:12,color:C.ink,whiteSpace:"pre-wrap",wordBreak:"break-word",lineHeight:1.55}}>
+                        {pair.answer}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : (
-              <div style={{background:C.cream,border:`1px solid ${C.border}`,padding:"10px 12px",borderRadius:8,fontSize:12,color:C.ink,lineHeight:1.6}}>
-                {msg.content}
+              <div style={{
+                background: isDemo ? "#fffbeb" : isError ? "#fff1f2" : C.white,
+                border:`1px solid ${isDemo ? "#f8d390" : isError ? "#f6a5bc" : C.border}`,
+                padding:"10px 12px",
+                borderRadius:10,
+                fontSize:12,
+                color:C.ink,
+                lineHeight:1.6,
+                boxShadow: isDemo || isError ? "none" : "0 1px 2px rgba(15,23,42,0.04)"
+              }}>
+                {isDemo && (
+                  <div style={{fontSize:11,color:C.warn,fontWeight:700,marginBottom:8}}>
+                    示例数据（非 AI 实时生成）
+                  </div>
+                )}
+                {isThinking ? (
+                  <div style={{display:"flex",alignItems:"center",gap:6,color:C.muted,fontWeight:600}}>
+                    <span style={{display:"inline-block",animation:"spin 1s linear infinite"}}>⟳</span>
+                    {msg.content || '思考中...'}
+                  </div>
+                ) : (
+                  <div className="doc-content" style={{fontSize:12,lineHeight:1.6}}>
+                    <SafeMarkdown content={msg.content} fallbackStyle={{fontSize:12,color:C.ink,lineHeight:1.6}} />
+                  </div>
+                )}
+
+                {trace && (
+                  <div style={{marginTop:8,paddingTop:8,background:"#fbfaf7",borderRadius:8,padding:"8px 10px"}}>
+                    <button
+                      onClick={() => setExpandedTrace(prev => ({ ...prev, [messageId]: !prev[messageId] }))}
+                      style={{
+                        width:"100%",textAlign:"left",border:"none",background:"transparent",padding:0,cursor:"pointer",
+                        fontSize:11,color:C.muted,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8
+                      }}
+                    >
+                      <span>{traceSummaryText}</span>
+                      <span style={{fontFamily:"'DM Mono',monospace"}}>
+                        {(trace?.model || msg?.meta?.model || currentModel).toUpperCase()}
+                        {typeof trace?.elapsedMs === 'number' ? ` · ${(trace.elapsedMs / 1000).toFixed(1)}s` : ''}
+                      </span>
+                    </button>
+                    {traceExpanded && Array.isArray(trace.steps) && (
+                      <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:6}}>
+                        {trace.steps.map((step, idx) => {
+                          const skillStepKey = `${messageId}-${idx}-skill`;
+                          const skillExpanded = Boolean(expandedTraceSkill[skillStepKey]);
+                          const canExpandSkill = step?.type === 'skill_prepare' && step?.detail;
+                          return (
+                            <div key={`${messageId}-${idx}`} style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px"}}>
+                              <div style={{fontSize:11,color:C.ink,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                                <span>{idx + 1}. {step?.title || '执行步骤'}</span>
+                                {step?.status && <span style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{step.status}</span>}
+                              </div>
+                              {step?.detailText && <div style={{fontSize:11,color:C.muted,marginTop:4}}>{step.detailText}</div>}
+                              {canExpandSkill && (
+                                <>
+                                  <button
+                                    onClick={() => setExpandedTraceSkill(prev => ({ ...prev, [skillStepKey]: !prev[skillStepKey] }))}
+                                    style={{marginTop:5,border:"none",background:"transparent",padding:0,cursor:"pointer",fontSize:11,color:C.accent,fontWeight:600}}
+                                  >
+                                    {skillExpanded ? '隐藏 Skill 详情' : '查看 Skill 详情'}
+                                  </button>
+                                  {skillExpanded && (
+                                    <div style={{marginTop:5,fontSize:11,color:C.muted,lineHeight:1.5}}>
+                                      <div>Skill: {step.detail.skillName} ({step.detail.skillId})</div>
+                                      <div>模板来源: {step.detail.templateSource === 'custom' ? '自定义 SKILL.md' : '默认模板'}</div>
+                                      <div>命中变量: {Array.isArray(step.detail.variables) && step.detail.variables.length > 0 ? step.detail.variables.join('、') : '无'}</div>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {(isDemo || isError) && !isThinking && (
+                  <button
+                    onClick={() => handleRetry(msg)}
+                    disabled={loading}
+                    style={{marginTop:10,padding:"6px 10px",border:`1px solid ${C.border}`,borderRadius:6,background:C.white,cursor:loading ? "default" : "pointer",fontSize:11,color:C.ink,fontWeight:600}}
+                  >
+                    重试真实 AI
+                  </button>
+                )}
               </div>
             )}
-          </div>
-        ))}
-
-        {loading && (
-          <div style={{background:C.cream,padding:"10px 12px",borderRadius:8,fontSize:12,color:C.muted}}>
-            <span style={{display:"inline-block",animation:"spin 1s linear infinite"}}>⟳</span> 思考中…
-          </div>
-        )}
+          </div>);
+        })}
         <div ref={messagesEndRef}/>
       </div>
 
       {/* Input */}
       <div style={{padding:"12px",borderTop:`1px solid ${C.border}`}}>
-        <div style={{display:"flex",gap:8}}>
-          <input
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyPress={e => e.key === "Enter" && handleSend()}
-            placeholder="输入你的问题..."
-            disabled={loading}
-            style={{flex:1,padding:"8px 12px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,background:C.white,outline:"none"}}
-          />
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+          <span style={{fontSize:11,color:C.muted,fontWeight:600}}>Markdown 预览输入</span>
+          <span style={{fontSize:10,color:C.muted}}>{loading ? '发送中…' : '支持 Markdown'}</span>
+        </div>
+
+        {inputMode === 'preview' ? (
+          <div
+            onClick={() => setInputMode('edit')}
+            style={{minHeight:92,maxHeight:220,overflowY:"auto",padding:"10px 12px",border:`1px solid ${C.border}`,borderRadius:8,background:C.white,cursor:"text"}}
+          >
+            {input.trim() ? (
+              <div className="doc-content" style={{fontSize:12,lineHeight:1.6}}>
+                <SafeMarkdown content={input} fallbackStyle={{fontSize:12,color:C.ink,lineHeight:1.6}} />
+              </div>
+            ) : (
+              <div style={{fontSize:12,color:C.muted,lineHeight:1.6}}>点击此处开始输入，默认显示预览效果。</div>
+            )}
+          </div>
+        ) : (
+          <div>
+            <textarea
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="输入你的问题（支持 Markdown）..."
+              disabled={loading}
+              rows={4}
+              style={{width:"100%",minHeight:92,maxHeight:220,padding:"10px 12px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,background:C.white,outline:"none",resize:"vertical",lineHeight:1.55,fontFamily:"'DM Mono',monospace",boxSizing:"border-box"}}
+            />
+            <div style={{display:"flex",justifyContent:"flex-end",marginTop:6}}>
+              <button
+                onClick={() => setInputMode('preview')}
+                style={{padding:0,border:"none",background:"none",cursor:"pointer",fontSize:11,color:C.accent,fontWeight:600}}
+              >
+                完成编辑并返回预览
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div style={{display:"flex",gap:8,marginTop:8}}>
           <button
             onClick={handleSend}
             disabled={loading || !input.trim()}
             style={{padding:"8px 14px",background:C.accent,color:"#fff",border:"none",borderRadius:6,cursor:loading || !input.trim() ? "default" : "pointer",fontSize:12,fontWeight:600}}>
             发送
           </button>
+          <button
+            onClick={() => { setInput(''); setInputMode('preview'); }}
+            disabled={loading || !input}
+            style={{padding:"8px 12px",background:C.white,color:C.muted,border:`1px solid ${C.border}`,borderRadius:6,cursor:loading || !input ? "default" : "pointer",fontSize:12,fontWeight:600}}>
+            清空
+          </button>
         </div>
-        <div style={{fontSize:10,color:C.muted,marginTop:6}}>按 Enter 发送</div>
+        <div style={{fontSize:10,color:C.muted,marginTop:6}}>Enter 发送，Shift+Enter 换行</div>
       </div>
 
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -4506,10 +5429,186 @@ function ReferencePanel({ currentCard, allCards, onUpdateRefs }) {
   );
 }
 
-// ── RightPanel ──
-function RightPanel({ currentCard, allCards, activeTab, onTabChange, onSendMessage, onUpdateRefs }) {
+// ── VersionHistoryPanel ──
+function VersionHistoryPanel({ currentCard, currentDocType, currentDocContent, currentProposalId, projectConfig, onUpdateDocs, onNavigateToSettings }) {
+  const [commitMessage, setCommitMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitResult, setSubmitResult] = useState(null); // null | { ok, msg, url }
+
+  const normalizedDocs = useMemo(() => normalizeDocs(currentCard?.docs), [currentCard?.docs]);
+  const versionHistory = useMemo(() => {
+    return Array.isArray(normalizedDocs.versionHistory) ? normalizedDocs.versionHistory : [];
+  }, [normalizedDocs.versionHistory]);
+  const docScope = `${currentProposalId || 'root'}:${currentDocType || 'unknown'}`;
+
+  const historyByDoc = useMemo(() => {
+    return versionHistory
+      .filter(item => item && item.docScope === docScope)
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  }, [versionHistory, docScope]);
+
+  const currentDocLabel = useMemo(() => {
+    const allDocTypes = [...DOC_TYPES, ...PROPOSAL_DOC_TYPES];
+    const meta = allDocTypes.find(item => item.key === currentDocType);
+    return meta?.label || currentDocType || '未知文档';
+  }, [currentDocType]);
+
+  const buildFilePath = () => {
+    if (!currentCard || !currentDocType) return '';
+    const reqId = String(currentCard.id || '').toLowerCase();
+    if (!reqId) return '';
+    if (currentDocType === 'prd') return `docs/requirements/${reqId}/prd.md`;
+    if (currentDocType === 'raw') return '';
+    return `docs/requirements/${reqId}/proposals/${currentProposalId || 'default'}/${currentDocType}.md`;
+  };
+
+  const handleSubmitVersion = async () => {
+    if (!currentCard || !currentDocType) return;
+    const content = typeof currentDocContent === 'string' ? currentDocContent : '';
+    if (!content.trim()) {
+      setSubmitResult({ ok: false, msg: '当前文档为空，无法提交新版本。' });
+      return;
+    }
+    const filePath = buildFilePath();
+    if (!filePath) {
+      setSubmitResult({ ok: false, msg: '当前文档类型暂不支持版本提交。' });
+      return;
+    }
+
+    const targetProfiles = resolveTargetGitProfiles(currentCard, projectConfig?.git);
+    if (!targetProfiles.length) {
+      setSubmitResult({ ok: false, msg: '未配置 Git 仓库，请先前往项目配置页面完善配置。', toSettings: true });
+      return;
+    }
+
+    const nextVersionNumber = historyByDoc.length + 1;
+    const versionLabel = `v${nextVersionNumber}`;
+    const safeMessage = commitMessage.trim() || `发布 ${currentDocLabel} ${versionLabel}`;
+
+    setSubmitting(true);
+    setSubmitResult(null);
+    try {
+      const settled = await Promise.allSettled(
+        targetProfiles.map((profile) =>
+          commitDocToGit(filePath, content, `docs(${currentCard.id}): ${safeMessage}`, profile)
+            .then((url) => ({ ok: true, url, profile }))
+            .catch((error) => ({ ok: false, error: error?.message || '提交失败', profile }))
+        )
+      );
+      const results = settled.map((item) => (item.status === 'fulfilled' ? item.value : { ok: false, error: '提交失败', profile: null }));
+      const firstSuccess = results.find((item) => item.ok && item.url);
+      if (!firstSuccess) throw new Error(results.find((item) => !item.ok)?.error || '提交失败');
+      const commitUrl = firstSuccess.url;
+      const commitShaMatch = String(commitUrl || '').match(/\/commit\/([0-9a-f]{7,40})/i);
+      const actor = parseRepoUrl(firstSuccess.profile?.repoUrl || '')?.owner || 'unknown';
+      const now = new Date().toISOString();
+      const newEntry = {
+        id: `${docScope}:${Date.now()}`,
+        docScope,
+        version: versionLabel,
+        docType: currentDocType,
+        proposalId: currentProposalId || null,
+        message: safeMessage,
+        author: actor,
+        commitUrl,
+        commitSha: commitShaMatch?.[1] || '',
+        createdAt: now,
+      };
+
+      const updatedDocs = {
+        ...normalizedDocs,
+        versionHistory: [newEntry, ...versionHistory],
+      };
+      onUpdateDocs && onUpdateDocs(currentCard.id, updatedDocs, { col: 'submitted' });
+      const successCount = results.filter((item) => item.ok).length;
+      setSubmitResult({ ok: true, msg: `已创建新版本 ${versionLabel}（${successCount}/${results.length} 仓库成功）`, url: commitUrl });
+      setCommitMessage('');
+    } catch (error) {
+      setSubmitResult({ ok: false, msg: error?.message || '提交失败，请稍后重试。' });
+    }
+    setSubmitting(false);
+  };
+
+  const canSubmit = Boolean(currentCard && currentDocType && currentDocType !== 'raw');
+  const formatCreatedAt = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString();
+  };
+
   return (
-    <div style={{width:320,background:C.white,borderLeft:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,background:C.cream}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:16}}>🕘</span>
+          <span style={{fontSize:13,fontWeight:600,color:C.ink}}>版本记录</span>
+        </div>
+        <div style={{fontSize:11,color:C.muted,marginTop:4}}>当前文档：{currentDocLabel}</div>
+      </div>
+
+      <div style={{padding:"12px",borderBottom:`1px solid ${C.border}`,background:C.white}}>
+        <div style={{fontSize:11,color:C.muted,marginBottom:6}}>提交说明</div>
+        <input
+          value={commitMessage}
+          onChange={(e) => setCommitMessage(e.target.value)}
+          placeholder="例如：补充验收标准与边界条件"
+          disabled={!canSubmit || submitting}
+          style={{width:"100%",padding:"7px 9px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,outline:"none",boxSizing:"border-box",marginBottom:8}}
+        />
+        <button
+          onClick={handleSubmitVersion}
+          disabled={!canSubmit || submitting}
+          style={{width:"100%",padding:"8px 10px",background:submitting ? "#2a2a2a" : C.ink,color:submitting ? "#9ca3af" : "#fff",border:"none",borderRadius:6,cursor:!canSubmit || submitting ? "default" : "pointer",fontSize:12,fontWeight:600}}
+        >
+          {submitting ? '⟳ 提交中…' : '⬆ 提交为新版本'}
+        </button>
+        {!canSubmit && <div style={{fontSize:11,color:C.muted,marginTop:6}}>当前文档类型不支持版本提交。</div>}
+      </div>
+
+      {submitResult && (
+        <div style={{padding:"8px 12px",fontSize:12,display:"flex",alignItems:"center",gap:6,background:submitResult.ok ? C.successLight : C.dangerLight,color:submitResult.ok ? C.success : C.danger,borderBottom:`1px solid ${submitResult.ok ? C.success : C.danger}33`}}>
+          <span>{submitResult.ok ? '✓' : '✗'}</span>
+          <span>{submitResult.msg}</span>
+          {submitResult.ok && submitResult.url && <a href={submitResult.url} target="_blank" rel="noreferrer" style={{color:C.accent,fontSize:11}}>查看 Commit →</a>}
+          {!submitResult.ok && submitResult.toSettings && onNavigateToSettings && (
+            <button onClick={onNavigateToSettings} style={{marginLeft:"auto",padding:"2px 8px",background:"none",border:`1px solid ${C.accent}`,borderRadius:4,cursor:"pointer",fontSize:11,color:C.accent}}>前往配置</button>
+          )}
+        </div>
+      )}
+
+      <div style={{flex:1,overflowY:"auto",padding:"12px"}}>
+        {historyByDoc.length === 0 ? (
+          <div style={{border:`1.5px dashed ${C.border}`,borderRadius:8,padding:"20px 12px",textAlign:"center",background:C.cream}}>
+            <div style={{fontSize:20,marginBottom:6}}>📝</div>
+            <div style={{fontSize:12,color:C.muted,lineHeight:1.6}}>暂无版本记录，点击“提交为新版本”创建首个版本。</div>
+          </div>
+        ) : (
+          historyByDoc.map((item) => (
+            <div key={item.id} style={{border:`1px solid ${C.border}`,background:C.white,borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                <span style={{fontSize:11,padding:"2px 6px",borderRadius:4,background:C.accentLight,color:C.accent,fontFamily:"'DM Mono',monospace",fontWeight:700}}>{item.version || '-'}</span>
+                <span style={{fontSize:11,color:C.muted,fontFamily:"'DM Mono',monospace"}}>{item.commitSha ? item.commitSha.slice(0, 7) : 'no-sha'}</span>
+                <span style={{marginLeft:"auto",fontSize:11,color:C.muted}}>{formatCreatedAt(item.createdAt)}</span>
+              </div>
+              <div style={{fontSize:12,color:C.ink,fontWeight:600,lineHeight:1.5,marginBottom:4}}>{item.message || '无提交说明'}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11,color:C.muted}}>
+                <span>提交人：{item.author || 'unknown'}</span>
+                <span>文档：{item.docType || '-'}</span>
+                {item.commitUrl && <a href={item.commitUrl} target="_blank" rel="noreferrer" style={{color:C.accent}}>查看 Commit →</a>}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── RightPanel ──
+function RightPanel({ currentCard, allCards, activeTab, onTabChange, onSendMessage, onUpdateRefs, width, currentDocType, currentDocContent, currentProposalId, projectConfig, onUpdateDocs, onNavigateToSettings }) {
+  return (
+    <div style={{width:width || DETAIL_LAYOUT_DEFAULT_RIGHT_WIDTH,background:C.white,borderLeft:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
       {/* Tabs */}
       <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,background:C.cream}}>
         <button
@@ -4524,14 +5623,30 @@ function RightPanel({ currentCard, allCards, activeTab, onTabChange, onSendMessa
         >
           📚 参考资料
         </button>
+        <button
+          onClick={() => onTabChange("versions")}
+          style={{flex:1,padding:"10px 0",background:"none",border:"none",borderBottom:`2px solid ${activeTab === "versions" ? C.accent : "transparent"}`,cursor:"pointer",fontSize:12,color:activeTab === "versions" ? C.ink : C.muted,fontWeight:activeTab === "versions" ? 600 : 400}}
+        >
+          🕘 版本记录
+        </button>
       </div>
 
       {/* Content */}
       <div style={{flex:1,overflow:"hidden"}}>
         {activeTab === "chatbot" ? (
           <ChatbotPanel card={currentCard} onSendMessage={onSendMessage}/>
-        ) : (
+        ) : activeTab === "reference" ? (
           <ReferencePanel currentCard={currentCard} allCards={allCards} onUpdateRefs={onUpdateRefs}/>
+        ) : (
+          <VersionHistoryPanel
+            currentCard={currentCard}
+            currentDocType={currentDocType}
+            currentDocContent={currentDocContent}
+            currentProposalId={currentProposalId}
+            projectConfig={projectConfig}
+            onUpdateDocs={onUpdateDocs}
+            onNavigateToSettings={onNavigateToSettings}
+          />
         )}
       </div>
     </div>
@@ -4653,18 +5768,28 @@ function ProposalReviewDrawer({ card, onClose, onConfirm, reviewResult, reviewin
 }
 
 // ── DetailPage ──
-function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, projectConfig, onNavigateToSettings, onUpdateRefs }) {
+function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, onUpdateCard, projectConfig, onNavigateToSettings, onUpdateRefs }) {
+  const initialViewportWidth = getViewportWidth();
+  const storedPaneWidths = readDetailLayoutWidths();
+  const initialLeftWidth = clampLeftPaneWidth(storedPaneWidths.left, storedPaneWidths.right, initialViewportWidth);
+  const initialRightWidth = clampRightPaneWidth(storedPaneWidths.right, initialLeftWidth, initialViewportWidth);
   const [selectedKey, setSelectedKey] = useState(`${focusCardId}:prd`);
   const [expanded, setExpanded] = useState(() => {
     const init = {};
     cards.forEach(c => { init[c.id] = c.id === focusCardId; });
     return init;
   });
+  const [viewportWidth, setViewportWidth] = useState(initialViewportWidth);
+  const [leftPaneWidth, setLeftPaneWidth] = useState(initialLeftWidth);
+  const [rightPaneWidth, setRightPaneWidth] = useState(initialRightWidth);
   const [expandedProposals, setExpandedProposals] = useState(new Set(["auth-system"]));
   const [generating, setGenerating] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [editText, setEditText] = useState("");
   const [rightTab, setRightTab] = useState("chatbot");
+  const [paneHoverSide, setPaneHoverSide] = useState(null);
+  const [paneDraggingSide, setPaneDraggingSide] = useState(null);
+  const dragRef = useRef(null);
 
   // ProposalReviewDrawer state
   const [proposalReviewOpen, setProposalReviewOpen] = useState(false);
@@ -4673,9 +5798,96 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, p
   const [proposalGenerating, setProposalGenerating] = useState(false);
   const [proposalGeneratingStep, setProposalGeneratingStep] = useState(null);
   const [proposalGenerateError, setProposalGenerateError] = useState(null);
+  const [showClarificationDemoDialog, setShowClarificationDemoDialog] = useState(false);
+  const [clarificationDemoQuestions, setClarificationDemoQuestions] = useState([]);
+  const [clarificationDemoAnswers, setClarificationDemoAnswers] = useState({});
+  const [clarificationDemoCustomInputs, setClarificationDemoCustomInputs] = useState({});
+  const [clarificationDemoErrors, setClarificationDemoErrors] = useState({});
+  const [showClarificationDialog, setShowClarificationDialog] = useState(false);
+  const [clarificationQuestions, setClarificationQuestions] = useState([]);
+  const [loadingClarificationQuestions, setLoadingClarificationQuestions] = useState(false);
 
   // 切换文档时重置编辑状态
   useEffect(() => { setEditMode(false); }, [selectedKey]);
+
+  useEffect(() => {
+    const onResize = () => setViewportWidth(getViewportWidth());
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    const nextLeft = clampLeftPaneWidth(leftPaneWidth, rightPaneWidth, viewportWidth);
+    const nextRight = clampRightPaneWidth(rightPaneWidth, nextLeft, viewportWidth);
+    const finalLeft = clampLeftPaneWidth(nextLeft, nextRight, viewportWidth);
+    if (finalLeft !== leftPaneWidth) {
+      setLeftPaneWidth(finalLeft);
+      return;
+    }
+    if (nextRight !== rightPaneWidth) {
+      setRightPaneWidth(nextRight);
+    }
+  }, [leftPaneWidth, rightPaneWidth, viewportWidth]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DETAIL_LAYOUT_STORAGE_KEY, JSON.stringify({ left: leftPaneWidth, right: rightPaneWidth }));
+    } catch (error) {
+      console.warn('[DetailLayout] failed to save pane widths:', error);
+    }
+  }, [leftPaneWidth, rightPaneWidth]);
+
+  const canResizePanes = viewportWidth >= DETAIL_LAYOUT_DRAG_MIN_VIEWPORT;
+
+  const stopPaneDrag = useCallback(() => {
+    if (!dragRef.current) return;
+    window.removeEventListener('mousemove', dragRef.current.onMove);
+    window.removeEventListener('mouseup', dragRef.current.onUp);
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    setPaneDraggingSide(null);
+    dragRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopPaneDrag();
+    };
+  }, [stopPaneDrag]);
+
+  const startPaneDrag = useCallback((side, event) => {
+    if (!canResizePanes) return;
+    event.preventDefault();
+    event.stopPropagation();
+    stopPaneDrag();
+    setPaneDraggingSide(side);
+    const startX = event.clientX;
+    const startLeft = leftPaneWidth;
+    const startRight = rightPaneWidth;
+
+    const onMove = (moveEvent) => {
+      const delta = moveEvent.clientX - startX;
+      if (side === 'left') {
+        const nextLeft = clampLeftPaneWidth(startLeft + delta, startRight, getViewportWidth());
+        setLeftPaneWidth(nextLeft);
+        return;
+      }
+      const nextRight = clampRightPaneWidth(startRight - delta, startLeft, getViewportWidth());
+      setRightPaneWidth(nextRight);
+    };
+
+    const onUp = () => {
+      stopPaneDrag();
+    };
+
+    dragRef.current = { onMove, onUp };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+  }, [canResizePanes, leftPaneWidth, rightPaneWidth, stopPaneDrag]);
 
   const toggleProposal = (proposalId) => {
     setExpandedProposals(prev => {
@@ -4715,16 +5927,42 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, p
   }
 
   // ── 提交 git 成功后持久化 gitStatus
-  const handleCommitSuccess = useCallback(({ docType, url }) => {
+  const handleCommitSuccess = useCallback(({ docType, results }) => {
     if (!selCard) return;
     const nd = normalizeDocs(selCard.docs);
-    const pid = selProposalId || nd.proposals?.[0]?.id;
-    if (!pid) return; // prd 暂不追踪
-    const updatedProposals = nd.proposals.map(p => {
-      if (p.id !== pid) return p;
-      return { ...p, gitStatus: { ...(p.gitStatus || {}), [docType]: url, committedAt: new Date().toISOString() } };
+    const normalizedResults = Array.isArray(results) ? results : [];
+    const nextDocStatus = {};
+    normalizedResults.forEach((item) => {
+      if (!item?.profileId) return;
+      nextDocStatus[item.profileId] = {
+        ok: Boolean(item.ok),
+        url: item.url || '',
+        error: item.error || '',
+        committedAt: item.committedAt || new Date().toISOString(),
+      };
     });
-    onUpdateDocs(selCard.id, { ...nd, proposals: updatedProposals }, { col: "submitted" });
+    const hasAnySuccess = normalizedResults.some((item) => item?.ok);
+
+    if (docType === 'prd') {
+      const nextGitStatus = { ...(nd.gitStatus || {}), [docType]: nextDocStatus, committedAt: new Date().toISOString() };
+      onUpdateDocs(selCard.id, { ...nd, gitStatus: nextGitStatus }, hasAnySuccess ? { col: 'submitted' } : {});
+      return;
+    }
+
+    const pid = selProposalId || nd.proposals?.[0]?.id;
+    if (!pid) return;
+    const updatedProposals = nd.proposals.map((proposal) => {
+      if (proposal.id !== pid) return proposal;
+      return {
+        ...proposal,
+        gitStatus: {
+          ...(proposal.gitStatus || {}),
+          [docType]: nextDocStatus,
+          committedAt: new Date().toISOString(),
+        },
+      };
+    });
+    onUpdateDocs(selCard.id, { ...nd, proposals: updatedProposals }, hasAnySuccess ? { col: 'submitted' } : {});
   }, [selCard, selProposalId, onUpdateDocs]);
 
   // ── 更新文档内容（区分 prd / 提案文档）
@@ -4740,8 +5978,95 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, p
     };
   };
 
+  const generateClarificationQuestions = useCallback(async (card) => {
+    const baseDesc = String(card?.rawRequirement || card?.desc || "").trim();
+    const prompt = `分析以下需求描述，列出 3-5 个需要产品经理补充的关键问题，每题说明题型（choice/text）和选项，严格返回 JSON。\n\n要求：\n1) 仅返回 JSON，不要解释\n2) JSON 结构：{"questions":[{"id":"q1","type":"choice|text","text":"问题","options":["选项1","选项2"],"multi":true|false,"placeholder":"示例"}]}\n3) 至少包含 1 道 text 题\n4) 总题量 3-5\n\n需求描述：\n${baseDesc || "（空）"}`;
+
+    try {
+      const raw = await callAI(prompt, 300);
+      const clean = String(raw || "").replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+      const list = Array.isArray(parsed) ? parsed : parsed?.questions;
+      if (!Array.isArray(list) || list.length === 0) return getClarificationFallbackQuestions();
+
+      const normalized = list.slice(0, 5).map((q, idx) => ({
+        id: q.id || `q${idx + 1}`,
+        type: q.type === "text" ? "text" : "choice",
+        text: q.text || `请补充信息 ${idx + 1}`,
+        options: Array.isArray(q.options) ? q.options.map((x) => String(x)) : [],
+        multi: Boolean(q.multi),
+        placeholder: q.placeholder || "请补充说明",
+      }));
+      return normalized.length > 0 ? normalized : getClarificationFallbackQuestions();
+    } catch {
+      return getClarificationFallbackQuestions();
+    }
+  }, []);
+
+  const handleClarificationSubmit = useCallback(async (answers) => {
+    if (!selCard) return;
+    const summary = buildClarificationSummaryText(clarificationQuestions, answers);
+    const model = localStorage.getItem('ai_model_selected') || 'claude';
+    const historyKey = `chatHistory_${model}`;
+    const existingHistory = selCard?.[historyKey] || (model === 'claude' ? selCard?.chatHistory || [] : []);
+    const nextHistory = [...existingHistory, { role: 'assistant', content: summary, type: 'clarification_summary', source: 'prd_spec_generation' }];
+    const historyPatch = model === 'claude' ? { [historyKey]: nextHistory, chatHistory: nextHistory } : { [historyKey]: nextHistory };
+    onUpdateCard && onUpdateCard(selCard.id, historyPatch);
+
+    setShowClarificationDialog(false);
+    setClarificationQuestions([]);
+
+    const genKey = selectedKey;
+    setGenerating(genKey);
+    try {
+      const content = await callAIDoc(selCard, 'prd', summary);
+      const newDocs = updateDocContent(selCard.docs, 'prd', selProposalId, content);
+      onUpdateDocs(selCard.id, newDocs);
+    } catch (e) {
+      console.error(e);
+      const fallback = FALLBACK_DOCS.prd;
+      if (fallback) {
+        const newDocs = updateDocContent(selCard.docs, 'prd', selProposalId, fallback);
+        onUpdateDocs(selCard.id, newDocs);
+      }
+    }
+    setGenerating(null);
+  }, [selCard, selectedKey, clarificationQuestions, selProposalId, onUpdateCard, onUpdateDocs]);
+
+  const handleClarificationSkip = useCallback(async () => {
+    if (!selCard) return;
+    setShowClarificationDialog(false);
+    setClarificationQuestions([]);
+
+    const genKey = selectedKey;
+    setGenerating(genKey);
+    try {
+      const content = await callAIDoc(selCard, 'prd');
+      const newDocs = updateDocContent(selCard.docs, 'prd', selProposalId, content);
+      onUpdateDocs(selCard.id, newDocs);
+    } catch (e) {
+      console.error(e);
+      const fallback = FALLBACK_DOCS.prd;
+      if (fallback) {
+        const newDocs = updateDocContent(selCard.docs, 'prd', selProposalId, fallback);
+        onUpdateDocs(selCard.id, newDocs);
+      }
+    }
+    setGenerating(null);
+  }, [selCard, selectedKey, selProposalId, onUpdateDocs]);
+
   const handleGenerate = async () => {
     if (!selCard || !selDocType) return;
+
+    if (selDocType === 'prd' && shouldTriggerClarification(selCard)) {
+      setLoadingClarificationQuestions(true);
+      const questions = await generateClarificationQuestions(selCard);
+      setClarificationQuestions(questions);
+      setShowClarificationDialog(true);
+      setLoadingClarificationQuestions(false);
+      return;
+    }
+
     const genKey = selectedKey;
     setGenerating(genKey);
     try {
@@ -4770,10 +6095,54 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, p
     setEditMode(true);
   };
 
-  const isGenerating = generating === selectedKey;
+  const isGenerating = generating === selectedKey || (selDocType === 'prd' && loadingClarificationQuestions);
 
   // 计算 hasProposals（Task 2.1）
   const hasProposals = (normDocs.proposals?.length ?? 0) > 0;
+
+  const designSummaryStats = useMemo(() => {
+    const safeCards = Array.isArray(cards) ? cards : [];
+    const total = safeCards.length;
+    const approved = safeCards.filter(card => ['approved', 'submitted'].includes(card.col)).length;
+    const withDocs = safeCards.filter(card => Object.values(card.docs || {}).some(Boolean)).length;
+    return { total, approved, withDocs };
+  }, [cards]);
+
+  const [topNavModel, setTopNavModel] = useState(() => localStorage.getItem('ai_model_selected') || projectConfig?.ai?.model || 'claude');
+
+  useEffect(() => {
+    const nextModel = localStorage.getItem('ai_model_selected') || projectConfig?.ai?.model || 'claude';
+    setTopNavModel(nextModel);
+  }, [projectConfig?.ai?.model]);
+
+  const topNavModelOptions = useMemo(() => {
+    const options = [
+      { value: 'claude', label: 'Claude' },
+      { value: 'glm', label: 'GLM' },
+      { value: 'ark', label: 'ARK' },
+    ];
+    const customReady = Boolean(
+      String(projectConfig?.ai?.customKey || '').trim()
+      && String(projectConfig?.ai?.customBaseUrl || '').trim()
+      && String(projectConfig?.ai?.customModel || '').trim()
+    );
+    if (customReady) {
+      options.push({ value: 'custom', label: String(projectConfig?.ai?.customName || '').trim() || '自定义模型' });
+    }
+    return options;
+  }, [projectConfig?.ai?.customKey, projectConfig?.ai?.customBaseUrl, projectConfig?.ai?.customModel, projectConfig?.ai?.customName]);
+
+  useEffect(() => {
+    if (topNavModelOptions.some(option => option.value === topNavModel)) return;
+    const fallback = topNavModelOptions[0]?.value || 'claude';
+    setTopNavModel(fallback);
+    localStorage.setItem('ai_model_selected', fallback);
+  }, [topNavModel, topNavModelOptions]);
+
+  const handleTopNavModelChange = (nextModel) => {
+    setTopNavModel(nextModel);
+    localStorage.setItem('ai_model_selected', nextModel);
+  };
 
   // Task 4.2: 打开评审抽屉并触发 AI 评审
   const handleOpenProposalReview = async () => {
@@ -4806,6 +6175,69 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, p
     }
     setProposalReviewing(false);
   };
+
+  const openClarificationDemoDialog = useCallback(() => {
+    setClarificationDemoQuestions(buildReviewQuestions(['desc', 'userStory', 'acceptanceCriteria']));
+    setClarificationDemoAnswers({});
+    setClarificationDemoCustomInputs({});
+    setClarificationDemoErrors({});
+    setShowClarificationDemoDialog(true);
+  }, []);
+
+  const closeClarificationDemoDialog = useCallback(() => {
+    setShowClarificationDemoDialog(false);
+    setClarificationDemoQuestions([]);
+    setClarificationDemoAnswers({});
+    setClarificationDemoCustomInputs({});
+    setClarificationDemoErrors({});
+  }, []);
+
+  const submitClarificationDemoDialog = useCallback(() => {
+    if (!selCard || !onUpdateCard) return;
+    const errors = {};
+    clarificationDemoQuestions.forEach((q) => {
+      const selectedValue = clarificationDemoAnswers[q.field];
+      const customValue = String(clarificationDemoCustomInputs[q.field] || '').trim();
+      const value = Array.isArray(q.options)
+        ? (selectedValue === '__other__' ? customValue : String(selectedValue || '').trim())
+        : customValue;
+      if (!value) {
+        errors[q.field] = '该项为必填，请先补充';
+        return;
+      }
+      if (q.field === 'acceptanceCriteria') {
+        const criteria = normalizeAcceptanceCriteria(value);
+        if (criteria.length === 0) {
+          errors[q.field] = '请至少填写一条验收标准';
+        }
+      }
+    });
+    if (Object.keys(errors).length > 0) {
+      setClarificationDemoErrors(errors);
+      return;
+    }
+
+    const qaPairs = buildClarificationSummaryPairs(clarificationDemoQuestions, clarificationDemoAnswers, clarificationDemoCustomInputs);
+    const selectedModel = localStorage.getItem('ai_model_selected') || 'claude';
+    const historyKey = `chatHistory_${selectedModel}`;
+    const existingHistory = selCard?.[historyKey] || (selectedModel === 'claude' ? selCard?.chatHistory || [] : []);
+    const summaryMessage = {
+      role: 'assistant',
+      type: 'clarification_summary',
+      source: 'clarification_demo',
+      title: '需求澄清记录',
+      qaPairs,
+      content: '已根据演示补充信息生成澄清摘要。',
+      createdAt: new Date().toISOString(),
+    };
+    const nextHistory = [...existingHistory, summaryMessage];
+    const historyPatch = selectedModel === 'claude'
+      ? { [historyKey]: nextHistory, chatHistory: nextHistory }
+      : { [historyKey]: nextHistory };
+
+    onUpdateCard(selCard.id, historyPatch);
+    closeClarificationDemoDialog();
+  }, [selCard, onUpdateCard, clarificationDemoQuestions, clarificationDemoAnswers, clarificationDemoCustomInputs, closeClarificationDemoDialog]);
 
   // Tasks 4.3-4.5: 串行生成提案文档
   const handleGenerateProposalDocs = async () => {
@@ -4866,6 +6298,21 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, p
     setProposalReviewOpen(false);
   };
 
+  const getPaneDividerStyle = (side) => {
+    const isHover = paneHoverSide === side;
+    const isActive = paneDraggingSide === side;
+    const lineColor = isActive ? `${C.accent}99` : isHover ? `${C.accent}66` : `${C.border}cc`;
+    return {
+      width: canResizePanes ? 6 : 3,
+      cursor: canResizePanes ? 'col-resize' : 'default',
+      background: canResizePanes
+        ? `linear-gradient(to right, transparent calc(50% - 0.5px), ${lineColor} calc(50% - 0.5px), ${lineColor} calc(50% + 0.5px), transparent calc(50% + 0.5px))`
+        : 'transparent',
+      flexShrink: 0,
+      transition: 'background 0.12s ease',
+    };
+  };
+
   return (
     <div style={{height:"100vh",display:"flex",flexDirection:"column",background:C.paper}}>
       <style>{`
@@ -4890,11 +6337,40 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, p
           <span style={{color:"#444"}}>/</span>
           <span style={{fontSize:12,color:C.sbText,fontWeight:500,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selCard?.title}</span>
         </div>
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+          {[{label:"总需求",val:designSummaryStats.total,c:"#fff"},{label:"已通过",val:designSummaryStats.approved,c:"#4ade80"},{label:"含文档",val:designSummaryStats.withDocs,c:"#c4b5fd"}].map(item => (
+            <div key={item.label} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 8px",background:"#1a1a1a",borderRadius:5}}>
+              <span style={{fontSize:13,fontWeight:700,color:item.c,fontFamily:"'DM Mono',monospace"}}>{item.val}</span>
+              <span style={{fontSize:10,color:"#666"}}>{item.label}</span>
+            </div>
+          ))}
+          <div style={{display:"flex",alignItems:"center",gap:6,padding:"0 6px"}}>
+            <span style={{fontSize:10,color:"#6b6b85",letterSpacing:1,fontFamily:"'DM Mono',monospace",textTransform:"uppercase"}}>模型</span>
+            <select
+              value={topNavModel}
+              onChange={(e) => handleTopNavModelChange(e.target.value)}
+              style={{height:26,background:"#1a1a1a",color:C.sbText,border:"1px solid #303045",borderRadius:5,padding:"0 8px",fontSize:12,cursor:"pointer",outline:"none"}}
+            >
+              {topNavModelOptions.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={onNavigateToSettings}
+            style={{height:26,padding:"0 9px",background:"#1a1a1a",color:"#8b8ba3",border:"1px solid #303045",borderRadius:5,cursor:"pointer",fontSize:12}}
+            onMouseEnter={e => e.currentTarget.style.color = "#fff"}
+            onMouseLeave={e => e.currentTarget.style.color = "#8b8ba3"}
+          >
+            ⚙ 设置
+          </button>
+        </div>
       </div>
 
       {/* Main content */}
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         <DocTreeSidebar
+          width={leftPaneWidth}
           cards={cards}
           selectedKey={selectedKey}
           onSelectKey={setSelectedKey}
@@ -4905,38 +6381,75 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, p
           onToggleProposal={toggleProposal}
         />
 
-        <DocEditor
-          card={selCard}
-          docType={selDocType}
-          proposalName={selProposalName}
-          content={selContent}
-          editMode={editMode}
-          editText={editText}
-          onEditMode={enterEdit}
-          onSaveEdit={handleSaveEdit}
-          onCancelEdit={() => setEditMode(false)}
-          onEditTextChange={setEditText}
-          onGenerate={handleGenerate}
-          isGenerating={isGenerating}
-          projectConfig={projectConfig}
-          onNavigateToSettings={onNavigateToSettings}
-          onGenerateProposal={selDocType === 'prd' ? handleOpenProposalReview : undefined}
-          hasProposals={hasProposals}
-          onCommitSuccess={handleCommitSuccess}
-          gitStatusUrl={(() => {
-            const pid = selProposalId || normDocs.proposals?.[0]?.id;
-            const p = normDocs.proposals?.find(x => x.id === pid);
-            return p?.gitStatus?.[selDocType] ?? null;
-          })()}
+        <div
+          onMouseDown={(event) => startPaneDrag('left', event)}
+          onMouseEnter={() => canResizePanes && setPaneHoverSide('left')}
+          onMouseLeave={() => setPaneHoverSide((prev) => prev === 'left' ? null : prev)}
+          style={getPaneDividerStyle('left')}
+        />
+
+        <div style={{flex:1,minWidth:getCenterMinByViewport(viewportWidth),display:"flex",overflow:"hidden"}}>
+          <DocEditor
+            card={selCard}
+            docType={selDocType}
+            proposalName={selProposalName}
+            content={selContent}
+            editMode={editMode}
+            editText={editText}
+            onEditMode={enterEdit}
+            onSaveEdit={handleSaveEdit}
+            onCancelEdit={() => setEditMode(false)}
+            onEditTextChange={setEditText}
+            onGenerate={handleGenerate}
+            isGenerating={isGenerating}
+            isClarificationLoading={loadingClarificationQuestions}
+            projectConfig={projectConfig}
+            onNavigateToSettings={onNavigateToSettings}
+            onGenerateProposal={selDocType === 'prd' ? handleOpenProposalReview : undefined}
+            onOpenClarificationDemo={selDocType === 'prd' ? openClarificationDemoDialog : undefined}
+            hasProposals={hasProposals}
+            onCommitSuccess={handleCommitSuccess}
+            gitStatusSummary={(() => {
+              const sourceStatus = selDocType === 'prd'
+                ? normDocs?.gitStatus
+                : (() => {
+                  const pid = selProposalId || normDocs.proposals?.[0]?.id;
+                  const proposal = normDocs.proposals?.find(x => x.id === pid);
+                  return proposal?.gitStatus;
+                })();
+              const record = readDocGitStatusResults(sourceStatus, selDocType);
+              const items = Object.entries(record).map(([profileId, item]) => ({ profileId, ...(item || {}) }));
+              const links = items.filter((item) => item.ok && item.url);
+              return {
+                totalCount: items.length,
+                successCount: links.length,
+                links,
+              };
+            })()}
+          />
+        </div>
+
+        <div
+          onMouseDown={(event) => startPaneDrag('right', event)}
+          onMouseEnter={() => canResizePanes && setPaneHoverSide('right')}
+          onMouseLeave={() => setPaneHoverSide((prev) => prev === 'right' ? null : prev)}
+          style={getPaneDividerStyle('right')}
         />
 
         <RightPanel
+          width={rightPaneWidth}
           currentCard={selCard}
           allCards={cards}
           activeTab={rightTab}
           onTabChange={setRightTab}
           onSendMessage={onSendMessage}
           onUpdateRefs={onUpdateRefs}
+          currentDocType={selDocType}
+          currentDocContent={selContent}
+          currentProposalId={selProposalId}
+          projectConfig={projectConfig}
+          onUpdateDocs={onUpdateDocs}
+          onNavigateToSettings={onNavigateToSettings}
         />
       </div>
 
@@ -4952,6 +6465,46 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, p
           generatingStep={proposalGeneratingStep}
         />
       )}
+
+      <PrdClarificationDialog
+        visible={showClarificationDialog}
+        questions={clarificationQuestions}
+        loading={loadingClarificationQuestions}
+        onSubmit={handleClarificationSubmit}
+        onSkip={handleClarificationSkip}
+        onClose={() => {
+          setShowClarificationDialog(false);
+          setClarificationQuestions([]);
+          setLoadingClarificationQuestions(false);
+        }}
+      />
+
+      <ConfirmationDialog
+        visible={showClarificationDemoDialog}
+        questions={clarificationDemoQuestions}
+        answers={clarificationDemoAnswers}
+        customInputs={clarificationDemoCustomInputs}
+        errors={clarificationDemoErrors}
+        prdExample={PRD_EXAMPLE_SNIPPET}
+        onSelectOption={(field, value) => {
+          setClarificationDemoAnswers((prev) => ({ ...prev, [field]: value }));
+          setClarificationDemoErrors((prev) => {
+            const next = { ...prev };
+            delete next[field];
+            return next;
+          });
+        }}
+        onChangeCustom={(field, value) => {
+          setClarificationDemoCustomInputs((prev) => ({ ...prev, [field]: value }));
+          setClarificationDemoErrors((prev) => {
+            const next = { ...prev };
+            delete next[field];
+            return next;
+          });
+        }}
+        onClose={closeClarificationDemoDialog}
+        onSubmit={submitClarificationDemoDialog}
+      />
     </div>
   );
 }
@@ -5113,7 +6666,7 @@ const DEFAULT_PROJECT_CONFIG = {
     arkKey: '',       arkBaseUrl: '',       arkModel: '',
     customName: '', customBaseUrl: '', customModel: '', customKey: '', customAuthStyle: 'Bearer',
   },
-  git: { platform: 'github', repoUrl: '', branch: 'main', token: '' },
+  git: { profiles: [], bindingsByAppId: {}, defaultProfileIds: [] },
   sdd: { framework: 'openspec', templates: { proposal: '', design: '', spec: '', tasks: '' } },
   skills: {},
 };
@@ -5157,7 +6710,7 @@ function loadProjectConfig() {
         customKey:        localStorage.getItem('ai_model_custom_key')        || base.ai?.customKey        || '',
         customAuthStyle:  localStorage.getItem('ai_model_custom_authstyle')  || base.ai?.customAuthStyle  || 'Bearer',
       },
-      git: { ...DEFAULT_PROJECT_CONFIG.git, ...(base.git || {}) },
+      git: normalizeGitConfig(base.git),
       sdd: { ...DEFAULT_PROJECT_CONFIG.sdd, ...(base.sdd || {}) },
       skills: { ...DEFAULT_PROJECT_CONFIG.skills, ...normalizedSkills },
     };
@@ -5166,7 +6719,7 @@ function loadProjectConfig() {
 
 function saveProjectConfig(config) {
   const skillNormalized = normalizeSkillConfig(config.skills).normalized;
-  const normalizedConfig = { ...config, skills: skillNormalized };
+  const normalizedConfig = { ...config, skills: skillNormalized, git: normalizeGitConfig(config.git) };
   localStorage.setItem('project-config', JSON.stringify(normalizedConfig));
   localStorage.setItem('ai_model_selected', normalizedConfig.ai.model);
   const ai = normalizedConfig.ai;
@@ -5217,10 +6770,17 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
   const [customModel, setCustomModel]           = useState(projectConfig.ai.customModel || '');
   const [customKey, setCustomKey]               = useState(projectConfig.ai.customKey || '');
   const [customAuthStyle, setCustomAuthStyle]   = useState(projectConfig.ai.customAuthStyle || 'Bearer');
-  const [gitPlatform, setGitPlatform]   = useState(projectConfig.git.platform);
-  const [repoUrl, setRepoUrl]           = useState(projectConfig.git.repoUrl);
-  const [branch, setBranch]             = useState(projectConfig.git.branch || 'main');
-  const [gitToken, setGitToken]         = useState(projectConfig.git.token);
+  const initialGitConfig = useMemo(() => normalizeGitConfig(projectConfig.git), [projectConfig.git]);
+  const [gitProfiles, setGitProfiles] = useState(initialGitConfig.profiles);
+  const [gitBindingsByAppId, setGitBindingsByAppId] = useState(initialGitConfig.bindingsByAppId);
+  const [gitDefaultProfileIds, setGitDefaultProfileIds] = useState(initialGitConfig.defaultProfileIds);
+  const [activeGitProfileId, setActiveGitProfileId] = useState(initialGitConfig.profiles[0]?.id || '');
+  const [gitDraft, setGitDraft] = useState(() => {
+    const first = initialGitConfig.profiles[0];
+    return first
+      ? { ...first }
+      : { id: '', name: '', platform: 'github', repoUrl: '', branch: 'main', token: '' };
+  });
   const [gitErrors, setGitErrors]       = useState({});
   const [gitTestStatus, setGitTestStatus] = useState(null);
   const [gitTestMsg, setGitTestMsg]     = useState('');
@@ -5273,6 +6833,50 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
   const selectedAppNames = availableApps
     .filter(app => projectAppIds.includes(app.id))
     .map(app => app.name);
+
+  useEffect(() => {
+    const normalized = normalizeGitConfig(projectConfig.git);
+    setGitProfiles(normalized.profiles);
+    setGitBindingsByAppId(normalized.bindingsByAppId);
+    setGitDefaultProfileIds(normalized.defaultProfileIds);
+    const current = normalized.profiles.find((profile) => profile.id === activeGitProfileId) || normalized.profiles[0] || { id: '', name: '', platform: 'github', repoUrl: '', branch: 'main', token: '' };
+    setActiveGitProfileId(current.id || '');
+    setGitDraft({ ...current });
+  }, [projectConfig.git]);
+
+  const handleSelectGitProfile = (profileId) => {
+    const profile = gitProfiles.find((item) => item.id === profileId);
+    if (!profile) return;
+    setActiveGitProfileId(profileId);
+    setGitDraft({ ...profile });
+    setGitErrors({});
+    setGitTestStatus(null);
+    setGitTestMsg('');
+  };
+
+  const handleNewGitProfile = () => {
+    setActiveGitProfileId('');
+    setGitDraft({ id: '', name: '', platform: 'github', repoUrl: '', branch: 'main', token: '' });
+    setGitErrors({});
+    setGitTestStatus(null);
+    setGitTestMsg('');
+  };
+
+  const handleDeleteGitProfile = (profileId) => {
+    const nextProfiles = gitProfiles.filter((profile) => profile.id !== profileId);
+    const nextBindings = {};
+    Object.entries(gitBindingsByAppId).forEach(([appId, ids]) => {
+      const filtered = (Array.isArray(ids) ? ids : []).filter((id) => id !== profileId);
+      if (filtered.length > 0) nextBindings[appId] = filtered;
+    });
+    const nextDefaultIds = gitDefaultProfileIds.filter((id) => id !== profileId);
+    setGitProfiles(nextProfiles);
+    setGitBindingsByAppId(nextBindings);
+    setGitDefaultProfileIds(nextDefaultIds);
+    const fallback = nextProfiles[0] || { id: '', name: '', platform: 'github', repoUrl: '', branch: 'main', token: '' };
+    setActiveGitProfileId(fallback.id || '');
+    setGitDraft({ ...fallback });
+  };
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -5435,31 +7039,64 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
 
   const handleSaveGit = () => {
     const errs = {};
-    if (!repoUrl.trim()) errs.repoUrl = '仓库 URL 不能为空';
-    if (!gitToken.trim()) errs.token = 'Token 不能为空';
+    if (!gitDraft.repoUrl?.trim()) errs.repoUrl = '仓库 URL 不能为空';
+    if (!gitDraft.token?.trim()) errs.token = 'Token 不能为空';
     if (Object.keys(errs).length > 0) { setGitErrors(errs); return; }
+
+    const normalizedProfiles = normalizeGitConfig({
+      profiles: [
+        ...gitProfiles.filter((profile) => profile.id !== activeGitProfileId),
+        {
+          id: activeGitProfileId || gitDraft.id,
+          name: gitDraft.name,
+          platform: gitDraft.platform,
+          repoUrl: gitDraft.repoUrl,
+          branch: gitDraft.branch,
+          token: gitDraft.token,
+        },
+      ],
+      bindingsByAppId: gitBindingsByAppId,
+      defaultProfileIds: gitDefaultProfileIds,
+    });
+
     setGitErrors({});
-    const config = { ...projectConfig, git: { platform: gitPlatform, repoUrl: repoUrl.trim(), branch: branch.trim() || 'main', token: gitToken.trim() } };
+    const config = { ...projectConfig, git: normalizedProfiles };
     const normalizedConfig = saveProjectConfig(config);
     onSave(normalizedConfig);
+    setGitProfiles(normalizedProfiles.profiles);
+    setGitBindingsByAppId(normalizedProfiles.bindingsByAppId);
+    setGitDefaultProfileIds(normalizedProfiles.defaultProfileIds);
+    const savedProfile = normalizedProfiles.profiles[normalizedProfiles.profiles.length - 1];
+    if (savedProfile) {
+      setActiveGitProfileId(savedProfile.id);
+      setGitDraft({ ...savedProfile });
+    }
     setSavedGit(true);
     setTimeout(() => setSavedGit(false), 2000);
   };
 
   const handleTestConnection = async () => {
+    const testPlatform = gitDraft.platform || 'github';
+    const testRepoUrl = String(gitDraft.repoUrl || '').trim();
+    const testToken = String(gitDraft.token || '').trim();
+    if (!testToken) {
+      setGitTestStatus('error');
+      setGitTestMsg('请先填写 Token');
+      return;
+    }
     setGitTestStatus('testing');
     setGitTestMsg('');
     try {
-      if (gitPlatform === 'github') {
+      if (testPlatform === 'github') {
         const res = await fetch('https://api.github.com/user', {
-          headers: { 'Authorization': `Bearer ${gitToken}`, 'Accept': 'application/vnd.github.v3+json' }
+          headers: { 'Authorization': `Bearer ${testToken}`, 'Accept': 'application/vnd.github.v3+json' }
         });
         const data = await res.json();
         if (res.ok) { setGitTestStatus('success'); setGitTestMsg(`连接成功，GitHub 用户: ${data.login}`); }
         else { setGitTestStatus('error'); setGitTestMsg(data.message || '认证失败'); }
       } else {
-        const baseUrl = repoUrl.match(/^(https?:\/\/[^/]+)/)?.[1] || 'https://gitlab.com';
-        const res = await fetch(`${baseUrl}/api/v4/user`, { headers: { 'PRIVATE-TOKEN': gitToken } });
+        const baseUrl = testRepoUrl.match(/^(https?:\/\/[^/]+)/)?.[1] || 'https://gitlab.com';
+        const res = await fetch(`${baseUrl}/api/v4/user`, { headers: { 'PRIVATE-TOKEN': testToken } });
         const data = await res.json();
         if (res.ok) { setGitTestStatus('success'); setGitTestMsg(`连接成功，GitLab 用户: ${data.username}`); }
         else { setGitTestStatus('error'); setGitTestMsg(data.message || '认证失败'); }
@@ -5627,34 +7264,55 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
           {/* Git 仓库配置区块 */}
           <div ref={gitRef} style={{ marginBottom: 48 }}>
               <h2 style={{ fontWeight: 700, fontSize: 18, color: C.ink, marginBottom: 4 }}>Git 仓库配置</h2>
-              <p style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>配置后，生成的 PRD 和 SPEC 文档可自动提交到仓库，触发应用魔方 CI 流程。</p>
+              <p style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>支持维护多个仓库档案、应用绑定和默认仓库兜底。文档提交时将按目标仓库并行写入。</p>
               <div style={sectionStyle}>
+                <label style={labelStyle}>仓库档案列表</label>
+                <div style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: C.cream, padding: 8, marginBottom: 12 }}>
+                  {gitProfiles.length === 0 && <div style={{ fontSize: 12, color: C.muted, padding: '6px 4px' }}>暂无仓库档案，请先新增一个。</div>}
+                  {gitProfiles.map((profile) => (
+                    <div key={profile.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', borderBottom: `1px dashed ${C.border}` }}>
+                      <button onClick={() => handleSelectGitProfile(profile.id)}
+                        style={{ flex: 1, textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer', color: activeGitProfileId === profile.id ? C.accent : C.ink, fontSize: 12, fontFamily: "'DM Mono',monospace" }}>
+                        {profile.name} · {profile.platform} · {profile.branch}
+                      </button>
+                      <button onClick={() => handleDeleteGitProfile(profile.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: C.danger, fontSize: 12 }}>删除</button>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, color: C.muted }}>编辑仓库档案</div>
+                  <button onClick={handleNewGitProfile} style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: C.white, cursor: 'pointer', fontSize: 12 }}>+ 新增档案</button>
+                </div>
+
+                <label style={labelStyle}>档案名称</label>
+                <input value={gitDraft.name || ''} onChange={e => setGitDraft(v => ({ ...v, name: e.target.value }))}
+                  placeholder="例如：PM AI Web 仓库" style={{ ...inputStyle, marginBottom: 12, fontFamily: 'inherit' }}/>
+
                 <label style={labelStyle}>Git 平台</label>
-                <select value={gitPlatform} onChange={e => setGitPlatform(e.target.value)}
+                <select value={gitDraft.platform || 'github'} onChange={e => setGitDraft(v => ({ ...v, platform: e.target.value }))}
                   style={{ ...inputStyle, marginBottom: 16, fontFamily: 'inherit', cursor: 'pointer' }}>
                   <option value="github">GitHub</option>
                   <option value="gitlab">GitLab</option>
                 </select>
 
                 <label style={labelStyle}>仓库 URL</label>
-                <input value={repoUrl} onChange={e => { setRepoUrl(e.target.value); setGitErrors(v => ({ ...v, repoUrl: '' })); }}
-                  placeholder={gitPlatform === 'github' ? 'https://github.com/org/repo' : 'https://gitlab.com/org/repo'}
+                <input value={gitDraft.repoUrl || ''} onChange={e => { setGitDraft(v => ({ ...v, repoUrl: e.target.value })); setGitErrors(v => ({ ...v, repoUrl: '' })); }}
+                  placeholder={(gitDraft.platform || 'github') === 'github' ? 'https://github.com/org/repo' : 'https://gitlab.com/org/repo'}
                   style={{ ...inputStyle, marginBottom: 4, borderColor: gitErrors.repoUrl ? C.danger : C.border }}/>
                 {gitErrors.repoUrl && <div style={errStyle}>{gitErrors.repoUrl}</div>}
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>完整仓库地址，例如 https://github.com/myorg/my-specs</div>
 
                 <label style={labelStyle}>目标分支</label>
-                <input value={branch} onChange={e => setBranch(e.target.value)}
+                <input value={gitDraft.branch || ''} onChange={e => setGitDraft(v => ({ ...v, branch: e.target.value }))}
                   placeholder="main" style={{ ...inputStyle, marginBottom: 16 }}/>
 
                 <label style={labelStyle}>Personal Access Token</label>
-                <input type="password" value={gitToken} onChange={e => { setGitToken(e.target.value); setGitErrors(v => ({ ...v, token: '' })); }}
-                  placeholder={gitPlatform === 'github' ? 'ghp_...' : 'glpat-...'}
+                <input type="password" value={gitDraft.token || ''} onChange={e => { setGitDraft(v => ({ ...v, token: e.target.value })); setGitErrors(v => ({ ...v, token: '' })); }}
+                  placeholder={(gitDraft.platform || 'github') === 'github' ? 'ghp_...' : 'glpat-...'}
                   style={{ ...inputStyle, marginBottom: 4, borderColor: gitErrors.token ? C.danger : C.border }}/>
                 {gitErrors.token && <div style={errStyle}>{gitErrors.token}</div>}
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>
-                  ⚠ Token 保存在浏览器本地存储，请勿在共享设备上使用。需要 repo write 权限。
-                </div>
+
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>⚠ Token 保存在浏览器本地存储，请勿在共享设备上使用。需要 repo write 权限。</div>
 
                 {gitTestStatus && (
                   <div style={{ padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 12,
@@ -5665,14 +7323,75 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
                   </div>
                 )}
 
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                  <div>
+                    <label style={labelStyle}>应用-仓库绑定（每个应用可多选）</label>
+                    <div style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: C.cream, padding: 8, maxHeight: 220, overflowY: 'auto' }}>
+                      {availableApps.map((app) => {
+                        const selectedIds = gitBindingsByAppId[app.id] || [];
+                        return (
+                          <div key={app.id} style={{ marginBottom: 10, paddingBottom: 8, borderBottom: `1px dashed ${C.border}` }}>
+                            <div style={{ fontSize: 12, color: C.ink, marginBottom: 4 }}>{app.name}</div>
+                            <div style={{ display: 'grid', gap: 4 }}>
+                              {gitProfiles.map((profile) => {
+                                const checked = selectedIds.includes(profile.id);
+                                return (
+                                  <label key={`${app.id}:${profile.id}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: C.ink, cursor: 'pointer' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={(e) => {
+                                        setGitBindingsByAppId((prev) => {
+                                          const current = Array.isArray(prev[app.id]) ? prev[app.id] : [];
+                                          const next = e.target.checked ? Array.from(new Set([...current, profile.id])) : current.filter((id) => id !== profile.id);
+                                          const output = { ...prev };
+                                          if (next.length > 0) output[app.id] = next;
+                                          else delete output[app.id];
+                                          return output;
+                                        });
+                                      }}
+                                    />
+                                    <span>{profile.name}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>默认仓库（应用未绑定时兜底）</label>
+                    <div style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: C.cream, padding: 8, minHeight: 120 }}>
+                      {gitProfiles.length === 0 && <div style={{ fontSize: 12, color: C.muted }}>暂无仓库档案</div>}
+                      {gitProfiles.map((profile) => (
+                        <label key={`default:${profile.id}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.ink, marginBottom: 6, cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={gitDefaultProfileIds.includes(profile.id)}
+                            onChange={(e) => {
+                              setGitDefaultProfileIds((prev) => e.target.checked
+                                ? Array.from(new Set([...prev, profile.id]))
+                                : prev.filter((id) => id !== profile.id));
+                            }}
+                          />
+                          <span>{profile.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <button onClick={handleSaveGit}
                     style={{ padding: '8px 20px', background: C.accent, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                     保存 Git 配置
                   </button>
-                  <button onClick={handleTestConnection} disabled={!gitToken.trim()}
-                    style={{ padding: '8px 16px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, cursor: gitToken.trim() ? 'pointer' : 'not-allowed', fontSize: 13, color: C.ink, opacity: gitToken.trim() ? 1 : 0.5 }}>
-                    测试连接
+                  <button onClick={handleTestConnection} disabled={!String(gitDraft.token || '').trim()}
+                    style={{ padding: '8px 16px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, cursor: String(gitDraft.token || '').trim() ? 'pointer' : 'not-allowed', fontSize: 13, color: C.ink, opacity: String(gitDraft.token || '').trim() ? 1 : 0.5 }}>
+                    测试当前档案
                   </button>
                   {savedGit && <span style={{ fontSize: 12, color: C.success }}>✓ 已保存</span>}
                 </div>
@@ -6660,6 +8379,24 @@ export default function PMPlatform() {
       return;
     }
 
+    const qaPairs = buildClarificationSummaryPairs(reviewQuestions, reviewAnswers, reviewCustomInputs);
+    const selectedModel = localStorage.getItem('ai_model_selected') || 'claude';
+    const historyKey = `chatHistory_${selectedModel}`;
+    const existingHistory = baseCard?.[historyKey] || (selectedModel === 'claude' ? baseCard?.chatHistory || [] : []);
+    const summaryMessage = {
+      role: 'assistant',
+      type: 'clarification_summary',
+      source: 'review_confirmation_dialog',
+      title: '需求澄清记录',
+      qaPairs,
+      content: '已根据补充信息更新需求并生成澄清摘要。',
+      createdAt: new Date().toISOString(),
+    };
+    const nextHistory = [...existingHistory, summaryMessage];
+    const historyPatch = selectedModel === 'claude'
+      ? { [historyKey]: nextHistory, chatHistory: nextHistory }
+      : { [historyKey]: nextHistory };
+
     const enrichedCard = { ...baseCard, ...patch };
     setDismissedReviewFill((prev) => ({ ...prev, [reviewTargetCardId]: false }));
     setShowReviewDialog(false);
@@ -6667,7 +8404,7 @@ export default function PMPlatform() {
     setReviewAnswers({});
     setReviewCustomInputs({});
     setReviewErrors({});
-    updateCard(reviewTargetCardId, patch);
+    updateCard(reviewTargetCardId, { ...patch, ...historyPatch });
     await executeAIReview(enrichedCard);
   }, [cards, reviewTargetCardId, reviewQuestions, reviewAnswers, reviewCustomInputs, executeAIReview]);
 
@@ -6698,27 +8435,146 @@ export default function PMPlatform() {
     notify("✓ 文档已保存");
   };
 
-  const handleSendMessage=useCallback(async(message, panel)=>{
+  const handleSendMessage=useCallback(async(message, _panel, options = {})=>{
     const card = cards.find(c => c.id === detailCardId);
-    if(!card) return;
+    const rawInput = String(message || '');
+    const nonEmptyInput = rawInput.trim();
+    if(!card || !nonEmptyInput) return;
 
     const model = getSelectedModel();
-    const historyKey = `chatHistory_${model}`;
-    // 迁移兼容：若有旧版 chatHistory，迁移到 chatHistory_claude
-    const chatHistory = card[historyKey] || (model === 'claude' ? card.chatHistory || [] : []);
-    const newMessage = { role: "user", content: message };
-    const updatedHistory = [...chatHistory, newMessage];
+    const { historyKey, history: chatHistory } = getCardChatHistory(card, model);
+    const requestId = options?.requestId || buildChatMessageId('req');
+    const userMessageId = buildChatMessageId('user');
+    const assistantMessageId = options?.retryMessageId || buildChatMessageId('assistant');
+    const startedAt = Date.now();
+    const skillId = 'chatbot';
+    const skillName = AI_SKILLS[skillId]?.name || 'Chatbot';
+    const skillVariables = Array.isArray(AI_SKILLS[skillId]?.vars) ? AI_SKILLS[skillId].vars : [];
+    const templateSource = getSkillTemplateSource(skillId);
+
+    const thinkingTrace = {
+      summary: '思考过程（调用 1 个 Skill）',
+      skillCount: 1,
+      model,
+      elapsedMs: null,
+      steps: [
+        {
+          type: 'skill_prepare',
+          title: '准备 Skill 调用',
+          status: 'done',
+          detailText: `${skillName} · ${templateSource === 'custom' ? '自定义模板' : '默认模板'}`,
+          detail: {
+            skillId,
+            skillName,
+            templateSource,
+            variables: skillVariables,
+          },
+        },
+        {
+          type: 'model_request',
+          title: '请求模型生成回复',
+          status: 'running',
+          detailText: `${model.toUpperCase()} · maxTokens=1500`,
+        },
+      ],
+    };
+
+    const thinkingMessage = {
+      id: assistantMessageId,
+      role: 'assistant',
+      type: 'thinking',
+      status: 'pending',
+      source: 'ai',
+      content: options?.isRetry ? '正在重试...' : '思考中...',
+      trace: thinkingTrace,
+      meta: {
+        requestId,
+        model,
+        userMessage: rawInput,
+        startedAt: new Date(startedAt).toISOString(),
+      },
+    };
+
+    const nextHistory = options?.retryMessageId
+      ? replaceMessageById(chatHistory, assistantMessageId, thinkingMessage)
+      : [
+        ...chatHistory,
+        { id: userMessageId, role: 'user', type: 'normal', status: 'done', source: 'user', content: rawInput },
+        thinkingMessage,
+      ];
+
+    updateCard(card.id, buildChatHistoryPatch(model, historyKey, nextHistory));
 
     try {
       const response = await callAI(
-        resolveSkillPrompt('chatbot', card, { message }),
+        resolveSkillPrompt(skillId, card, { message: rawInput }),
         1500
       );
-
-      updateCard(card.id, { [historyKey]: [...updatedHistory, { role: "assistant", content: response }] });
+      const elapsedMs = Date.now() - startedAt;
+      const successMessage = {
+        ...thinkingMessage,
+        type: 'normal',
+        status: 'done',
+        source: 'ai',
+        content: response,
+        trace: {
+          ...thinkingTrace,
+          elapsedMs,
+          steps: [
+            thinkingTrace.steps[0],
+            { ...thinkingTrace.steps[1], status: 'done' },
+            {
+              type: 'result',
+              title: '生成回复完成',
+              status: 'done',
+              detailText: `返回成功 · ${(elapsedMs / 1000).toFixed(1)}s`,
+            },
+          ],
+        },
+        meta: {
+          ...thinkingMessage.meta,
+          finishedAt: new Date().toISOString(),
+          elapsedMs,
+        },
+      };
+      updateCard(card.id, buildChatHistoryPatch(model, historyKey, replaceMessageById(nextHistory, assistantMessageId, successMessage)));
     } catch(e) {
       console.error(e);
       notify(getAIErrorMessage(e), false);
+      const elapsedMs = Date.now() - startedAt;
+      const fallbackMessage = {
+        ...thinkingMessage,
+        type: 'demo',
+        status: 'fallback',
+        source: 'fallback',
+        content: buildChatbotFallbackReply(card, rawInput),
+        trace: {
+          ...thinkingTrace,
+          elapsedMs,
+          summary: '思考过程（调用 1 个 Skill，已切换示例）',
+          steps: [
+            thinkingTrace.steps[0],
+            {
+              ...thinkingTrace.steps[1],
+              status: 'failed',
+              detailText: `请求失败 · ${(elapsedMs / 1000).toFixed(1)}s`,
+            },
+            {
+              type: 'result',
+              title: '切换示例回复',
+              status: 'done',
+              detailText: '已使用示例数据（非 AI 实时生成）',
+            },
+          ],
+        },
+        meta: {
+          ...thinkingMessage.meta,
+          finishedAt: new Date().toISOString(),
+          elapsedMs,
+          errorMessage: getAIErrorMessage(e),
+        },
+      };
+      updateCard(card.id, buildChatHistoryPatch(model, historyKey, replaceMessageById(nextHistory, assistantMessageId, fallbackMessage)));
     }
   }, [cards, detailCardId]);
 
@@ -6769,6 +8625,7 @@ export default function PMPlatform() {
           onBack={()=>setDetailId(null)}
           onUpdateDocs={handleUpdateDocs}
           onSendMessage={handleSendMessage}
+          onUpdateCard={updateCard}
           projectConfig={projectConfig}
           onNavigateToSettings={() => { setDetailId(null); setCurrentView('settings'); }}
           onUpdateRefs={(cardId, refs) => updateCard(cardId, { references: refs })}

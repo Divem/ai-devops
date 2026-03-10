@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tech PRD v1.1（详细版）</title>
+  <style>
+    :root { --bg:#f3f7f8; --card:#fff; --ink:#1e293b; --muted:#64748b; --line:#d5e1e3; --accent:#0891b2; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:"Noto Sans SC",sans-serif; }
+    .wrap { max-width:1120px; margin:28px auto 56px; padding:0 16px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:24px; margin-bottom:16px; }
+    h1 { margin:0 0 8px; font-size:30px; }
+    h2 { margin:0 0 10px; font-size:22px; }
+    h3 { margin:14px 0 8px; font-size:18px; }
+    p,li,td,th { line-height:1.7; }
+    .meta { color:var(--muted); }
+    table { width:100%; border-collapse:collapse; margin-top:8px; }
+    th,td { border:1px solid var(--line); text-align:left; padding:10px; vertical-align:top; }
+    th { background:#eef8fb; }
+    .chip { display:inline-block; padding:4px 9px; border-radius:999px; background:#e0f2fe; color:#0b4e66; margin-right:6px; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card">
+      <h1>Agentic·DevOps 面向技术团队需求文档（Tech PRD v1.1 详细版）</h1>
+      <p class="meta">版本：2026-03-10 ｜ 代码基线：pm-ai-app/src/PMPlatform.jsx ｜ 规格基线：openspec/specs/</p>
+      <p>
+        <span class="chip">看板流转</span>
+        <span class="chip">AI 评审</span>
+        <span class="chip">澄清问答</span>
+        <span class="chip">文档中心</span>
+        <span class="chip">Chatbot 稳定性</span>
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>一、背景与目标</h2>
+      <h3>背景</h3>
+      <p>需求评审、文档编写、提案确认和 Git 交付长期分散在多个工具，导致上下文反复搬运、信息不一致和反馈延迟。当前产品演进目标是把“高频标准动作”固化为稳定闭环，并确保关键路径可追溯、可恢复、可演示。</p>
+
+      <h3>目标</h3>
+      <ul>
+        <li>形成端到端链路：看板推进 -> AI 评审 -> 澄清补全 -> 文档生成 -> Git 提交。</li>
+        <li>建立过程证据链：澄清摘要、消息状态、错误回退均可在会话中追踪。</li>
+        <li>提升使用效率：顶部模型快速切换、三栏拖拽布局、文档树分组检索。</li>
+      </ul>
+
+      <h3>非目标</h3>
+      <ul>
+        <li>本期不建设完整后端持久化和权限体系。</li>
+        <li>本期不覆盖多人实时协同编辑和评论工作流。</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>二、角色与核心场景</h2>
+      <table>
+        <thead><tr><th>角色</th><th>核心任务</th><th>关键诉求</th></tr></thead>
+        <tbody>
+          <tr><td>产品经理</td><td>评审需求、补充澄清、生成文档</td><td>减少重复解释，提升输出质量</td></tr>
+          <tr><td>研发负责人</td><td>判断可行性和风险</td><td>快速看到结构化评审结果</td></tr>
+          <tr><td>研发工程师</td><td>消费 Spec/Tasks 并执行</td><td>交付内容完整且可追踪</td></tr>
+          <tr><td>售前/演示角色</td><td>稳定演示端到端流程</td><td>失败场景也能不断链</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>三、功能范围</h2>
+      <h3>In Scope</h3>
+      <ul>
+        <li>看板：状态流转、筛选、新建/导入。</li>
+        <li>AI 评审：完整性检测、补充问卷、评审结果与兜底。</li>
+        <li>文档中心：PRD + proposal/design/spec/tasks 生成、编辑、提交。</li>
+        <li>澄清流程：生成前问答、Q/A 摘要入 Chatbot、摘要参与 prompt。</li>
+        <li>Chatbot：Markdown 预览、乐观更新、thinking trace、fallback 与重试。</li>
+        <li>效率增强：顶栏模型切换、三栏拖拽持久化、文档树分组。</li>
+      </ul>
+
+      <h3>Out of Scope</h3>
+      <ul>
+        <li>Meego 全量双向同步。</li>
+        <li>版本历史 + 批注 + 分屏对比完整协作栈。</li>
+        <li>提案包级提交与 PR/MR 自动创建。</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>四、关键流程（技术实现口径）</h2>
+      <h3>流程 A：AI 评审</h3>
+      <ol>
+        <li>触发评审请求。</li>
+        <li>校验必填字段（title/desc/priority/userStory/acceptanceCriteria）。</li>
+        <li>若缺失则弹框补充；校验通过后发起评审。</li>
+        <li>结果写入 aiResult；失败时走 fallback 展示链路。</li>
+      </ol>
+
+      <h3>流程 B：PRD/SPEC 生成前澄清</h3>
+      <ol>
+        <li>点击生成文档。</li>
+        <li>根据语义缺口触发澄清问卷。</li>
+        <li>提交问答后构建 Q/A 摘要并写入 chatHistory_{model}。</li>
+        <li>将摘要拼接到生成 prompt，执行文档生成。</li>
+      </ol>
+
+      <h3>流程 C：Chatbot 发送链路</h3>
+      <ol>
+        <li>本地先插入用户消息与思考占位（pending）。</li>
+        <li>异步请求 AI，按消息 ID 原位替换为 done。</li>
+        <li>失败时替换为 fallback 并保留重试入口。</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>五、数据模型与状态约束</h2>
+      <table>
+        <thead><tr><th>对象</th><th>关键字段</th><th>约束</th></tr></thead>
+        <tbody>
+          <tr><td>需求卡片</td><td>id/col/priority/title/desc/userStory/acceptanceCriteria/aiResult/docs</td><td>评审与生成过程中状态一致性必须保证</td></tr>
+          <tr><td>文档对象</td><td>docs.prd + docs.proposals[]</td><td>proposal/design/spec/tasks 可部分成功，不阻断全链路</td></tr>
+          <tr><td>会话历史</td><td>chatHistory_claude/glm/ark/custom</td><td>按模型隔离，需支持澄清摘要与 fallback 消息</td></tr>
+          <tr><td>布局状态</td><td>leftWidth/rightWidth</td><td>需 clamp 最小/最大值并持久化恢复</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>六、验收标准</h2>
+      <ul>
+        <li>至少 1 个模型跑通“评审 -> 澄清 -> 生成 -> 提交”链路。</li>
+        <li>澄清问答可在 Chatbot 可视并可复用到生成上下文。</li>
+        <li>Chatbot Markdown 预览与最终渲染一致。</li>
+        <li>失败场景有会话内 fallback 展示并可重试。</li>
+        <li>三栏拖拽与重进恢复行为可验证。</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>七、后续迭代建议</h2>
+      <ol>
+        <li>P0：提案包级 Git 提交，降低交付操作摩擦。</li>
+        <li>P0：Meego 最小可用同步，打通源头与平台数据。</li>
+        <li>P1：澄清摘要结构化回填（自动更新 userStory/acceptanceCriteria）。</li>
+        <li>P1：版本快照与 diff，支撑多人协作评审。</li>
+      </ol>
+      <p class="meta">Tech PRD 版本：v1.1-detailed</p>
+    </section>
+  </div>
+</body>
+</html>

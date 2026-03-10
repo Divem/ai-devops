@@ -17,7 +17,7 @@ PM AI Platform 将需求管理从“收集 -> 评审 -> 设计 -> 文档 -> Git 
 - 详情抽屉：评审报告 / 原始需求双 Tab，原始需求支持基础信息、Meego 链接、编辑与同步
 - AI 能力：需求评审、文档生成、聊天澄清、失败回退演示
 - 文档中心：PRD + 多提案（Proposal/Design/Spec/Tasks）树状管理
-- Git 集成：文档提交到 GitHub/GitLab，提交状态持久化与展示
+- Git 集成：支持多仓库档案、应用-仓库多绑定、默认仓库兜底，并行提交与部分成功展示
 - OpenSpec：propose/apply/archive 全流程变更管理
 
 ## 快速启动
@@ -71,7 +71,7 @@ npm run dev
 在页面右上角进入项目配置：
 
 - AI 模型配置：Claude / GLM / ARK
-- Git 仓库配置：GitHub / GitLab
+- Git 仓库配置：仓库档案（GitHub/GitLab）+ 应用绑定 + 默认仓库
 - SDD 框架配置：OpenSpec / 其他模板
 - AI Skill 配置：结构化 Skill 包管理（`SKILL.md` + `references/*` + `scripts/*`）
 
@@ -90,6 +90,12 @@ skillname/
 
 - 旧版仅字符串 prompt 配置会自动迁移到 `SKILL.md`
 - 保存时会校验路径规范，并自动将 `scrips/*` 修正为 `scripts/*`
+
+提交行为说明：
+
+- 文档提交会根据需求关联应用解析目标仓库（应用绑定并集，未命中时回落默认仓库）
+- 多仓库并行提交，界面展示全部成功 / 部分成功 / 未成功
+- 支持对失败仓库单独重试，不影响已成功仓库结果
 
 未配置 API Key 时，部分流程会使用示例回退数据以保证演示可走通。
 

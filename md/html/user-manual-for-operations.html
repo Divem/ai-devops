@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agentic·DevOps 用户手册（使用者版）</title>
+  <style>
+    :root {
+      --bg: #f6f3ee;
+      --card: #ffffff;
+      --ink: #0d0e12;
+      --muted: #63666f;
+      --line: #e2ddd5;
+      --accent: #1a6cf6;
+      --accent-soft: #e8f0fe;
+      --sidebar-w: 280px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 20% 0%, #fbf9f4 0%, var(--bg) 45%, #f3efe8 100%);
+      color: var(--ink);
+      font-family: "Noto Sans SC", sans-serif;
+    }
+    .layout {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px 16px 56px;
+      display: grid;
+      grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+      gap: 16px;
+    }
+    .sidebar {
+      position: sticky;
+      top: 16px;
+      align-self: start;
+      height: calc(100vh - 32px);
+      overflow: auto;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(13, 14, 18, 0.04);
+    }
+    .sidebar h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+    .toc {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .toc li { margin: 6px 0; }
+    .toc a {
+      display: block;
+      text-decoration: none;
+      color: var(--ink);
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 14px;
+      line-height: 1.45;
+      transition: all 0.15s ease;
+    }
+    .toc a:hover {
+      background: #fcfbf8;
+      border-color: var(--line);
+    }
+    .toc a.active {
+      background: var(--accent-soft);
+      border-color: #bfd3ff;
+      color: #1748a6;
+      font-weight: 600;
+    }
+
+    .content .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(13, 14, 18, 0.04);
+    }
+    h1 { margin: 0 0 8px; font-size: 30px; }
+    h2 { margin: 0 0 10px; font-size: 22px; }
+    h3 { margin: 16px 0 8px; font-size: 18px; }
+    p, li { line-height: 1.72; }
+    .meta { color: var(--muted); }
+    .tag {
+      display: inline-block;
+      font-size: 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: #1748a6;
+      padding: 4px 8px;
+      margin-right: 6px;
+    }
+    .value-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 0;
+      margin: 10px 0 0;
+      list-style: none;
+    }
+    .value-list li {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fcfbf8;
+      padding: 10px 12px;
+    }
+    .mod {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      margin-top: 12px;
+      background: #fffdfa;
+    }
+    .faq-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+      background: #fff;
+    }
+    .faq-item b { display: block; margin-bottom: 6px; }
+    code {
+      background: #f1efe9;
+      border-radius: 6px;
+      padding: 1px 6px;
+      font-family: "DM Mono", monospace;
+      font-size: 12px;
+    }
+
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        position: static;
+        height: auto;
+      }
+      .value-list {
+        grid-template-columns: 1fr;
+      }
+      h1 { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <h2>目录</h2>
+      <ul class="toc" id="toc">
+        <li><a href="#goal" data-target="goal">1. 手册目标</a></li>
+        <li><a href="#position" data-target="position">2. 系统定位与核心价值</a></li>
+        <li><a href="#map" data-target="map">3. 整体功能地图</a></li>
+        <li><a href="#modules" data-target="modules">4. 模块说明：价值与用法</a></li>
+        <li><a href="#quickstart" data-target="quickstart">5. 新用户快速上手路径</a></li>
+        <li><a href="#faq" data-target="faq">6. 常见问题 FAQ</a></li>
+        <li><a href="#tips" data-target="tips">7. 实用技巧</a></li>
+        <li><a href="#docs" data-target="docs">8. 相关文档</a></li>
+      </ul>
+    </aside>
+
+    <main class="content">
+      <section class="card" id="top">
+        <h1>Agentic·DevOps 用户手册（使用者版）</h1>
+        <p class="meta">定位：帮助使用者快速用起来，并在遇到问题时可自助定位与解决。</p>
+        <p>
+          <span class="tag">快速上手</span>
+          <span class="tag">模块价值</span>
+          <span class="tag">操作指南</span>
+          <span class="tag">FAQ</span>
+        </p>
+      </section>
+
+      <section class="card" id="goal" data-section>
+        <h2>1. 手册目标</h2>
+        <p>这份手册面向日常使用系统的用户（产品经理、研发负责人、项目经理、需求协同人员），帮助你快速理解系统并高效使用。</p>
+        <ol>
+          <li>快速理解系统定位与核心价值</li>
+          <li>明确每个模块“有什么用、什么时候用、怎么用”</li>
+          <li>遇到问题时在 FAQ 中快速找到处理方法</li>
+        </ol>
+      </section>
+
+      <section class="card" id="position" data-section>
+        <h2>2. 系统定位与核心价值</h2>
+        <h3>2.1 系统定位</h3>
+        <p>Agentic·DevOps 是一个 AI 驱动的需求管理与协作工作台。它将需求从评审到文档产出再到执行协同放在同一条流程中，减少信息断层和重复沟通。</p>
+        <h3>2.2 核心价值</h3>
+        <ul class="value-list">
+          <li><b>更快：</b>AI 辅助评审和文档生成，减少从零开始写作</li>
+          <li><b>更稳：</b>关键环节有结构化校验和补全，降低遗漏风险</li>
+          <li><b>更清晰：</b>需求状态、评审结果、文档进展集中可见</li>
+          <li><b>可追溯：</b>澄清记录、对话上下文、文档内容可持续复用</li>
+        </ul>
+      </section>
+
+      <section class="card" id="map" data-section>
+        <h2>3. 整体功能地图</h2>
+        <p>系统主要由 5 个功能区组成：</p>
+        <ol>
+          <li><b>需求评审看板：</b>管理需求状态流转和优先级</li>
+          <li><b>需求详情 / AI 设计页：</b>查看需求上下文、生成与编辑文档</li>
+          <li><b>Chatbot 与参考区：</b>围绕当前需求持续澄清、补充和追问</li>
+          <li><b>数据概览：</b>查看需求规模、阶段分布和过程质量</li>
+          <li><b>项目配置：</b>管理模型、模板与协作配置</li>
+        </ol>
+        <p><b>建议路径：</b>看板 -> 详情 -> AI 评审 -> 文档生成 -> 回到看板推进。</p>
+      </section>
+
+      <section class="card" id="modules" data-section>
+        <h2>4. 模块说明：价值与用法</h2>
+
+        <article class="mod">
+          <h3>4.1 需求评审看板</h3>
+          <p><b>模块价值：</b>统一查看需求阶段，快速识别高优先级和阻塞项，为评审会和迭代会提供同一事实视图。</p>
+          <p><b>你可以做什么：</b>按业务维度筛选需求；打开需求详情；推进需求状态。</p>
+          <p><b>推荐用法：</b>每天先看“高优先级 + 待评审”；评审会前筛选当前迭代；优先处理长期停留需求。</p>
+        </article>
+
+        <article class="mod">
+          <h3>4.2 AI 智能评审（在需求详情中触发）</h3>
+          <p><b>模块价值：</b>在评审前发现信息缺口，输出结构化评分和风险提示，提高讨论质量。</p>
+          <p><b>你可以做什么：</b>发起 AI 评审；查看风险清单与优化建议；补齐需求描述、用户故事、验收标准。</p>
+          <p><b>推荐用法：</b>对 P0/P1 需求先评审再开会；低分需求先补全再复评；关键风险转为任务跟踪。</p>
+        </article>
+
+        <article class="mod">
+          <h3>4.3 需求详情 / AI 设计页（文档中心）</h3>
+          <p><b>模块价值：</b>在同一上下文中完成文档生成和编辑，减少信息断层，提升产出速度与规范性。</p>
+          <p><b>你可以做什么：</b>生成 PRD / Proposal / Design / Spec / Tasks；编辑与预览；迭代多版文档。</p>
+          <p><b>推荐用法：</b>先 PRD，再 Spec，最后 Tasks；优先人工检查边界条件、异常流程、验收标准。</p>
+        </article>
+
+        <article class="mod">
+          <h3>4.4 Chatbot 与参考资料区</h3>
+          <p><b>模块价值：</b>围绕当前需求连续对话，不丢上下文，快速补齐遗漏点并复用历史澄清。</p>
+          <p><b>你可以做什么：</b>追问边界/异常/依赖/验收；用结构化方式表达（支持 Markdown 预览）；查看澄清摘要与历史问答。</p>
+          <p><b>推荐提问：</b>“补充遗漏验收标准”“拆分业务/技术风险”“拆解任务并标注优先级”。</p>
+        </article>
+
+        <article class="mod">
+          <h3>4.5 数据概览</h3>
+          <p><b>模块价值：</b>管理者看趋势，执行者看瓶颈，用数据判断流程健康度并支撑复盘。</p>
+          <p><b>你可以做什么：</b>查看需求总量、阶段分布和处理进度；识别积压阶段与高风险区间。</p>
+          <p><b>推荐用法：</b>每周固定查看阶段变化；对积压阶段建立专项动作；结合通过率与文档覆盖率分析。</p>
+        </article>
+
+        <article class="mod">
+          <h3>4.6 项目配置（模型与模板）</h3>
+          <p><b>模块价值：</b>统一团队模型和输出规范，提升文档生成质量稳定性。</p>
+          <p><b>你可以做什么：</b>选择并管理 AI 模型；配置文档模板和技能内容；调整默认生成风格。</p>
+          <p><b>推荐用法：</b>先统一默认模型与模板，再根据评审反馈迭代，保留“标准模板 + 团队补充规则”。</p>
+        </article>
+      </section>
+
+      <section class="card" id="quickstart" data-section>
+        <h2>5. 新用户快速上手路径</h2>
+        <ol>
+          <li>在看板选一条需求，阅读核心字段</li>
+          <li>触发 AI 评审，理解评分和风险建议</li>
+          <li>进入 AI 设计页生成 PRD 和 Tasks</li>
+          <li>在 Chatbot 追问缺失点并补全文档</li>
+          <li>回到看板推进状态并观察数据概览变化</li>
+        </ol>
+      </section>
+
+      <section class="card" id="faq" data-section>
+        <h2>6. 常见问题 FAQ</h2>
+        <div class="faq-item">
+          <b>Q1：为什么触发 AI 评审后会先出现补充问题？</b>
+          <p>这是完整性校验机制。系统会先补齐关键信息，再发起评审，以提升评审准确性并减少无效结果。</p>
+        </div>
+        <div class="faq-item">
+          <b>Q2：AI 给了很多建议，我应该先改哪里？</b>
+          <p>优先顺序：用户故事是否明确 -> 验收标准是否可测试 -> 边界与异常是否覆盖。</p>
+        </div>
+        <div class="faq-item">
+          <b>Q3：文档很多，不知道先看哪份？</b>
+          <p>建议先 PRD（目标与范围），再 Spec（实现细节），最后 Tasks（执行拆解）。</p>
+        </div>
+        <div class="faq-item">
+          <b>Q4：Chatbot 怎么问，才能得到可执行答案？</b>
+          <p>用结构化问题：指定输出格式、指定维度、指定场景（正常/异常/边界）。</p>
+        </div>
+        <div class="faq-item">
+          <b>Q5：文档生成内容太泛怎么办？</b>
+          <p>先补充背景目标、关键约束、用户画像和验收标准，再基于同一会话追问修订。</p>
+        </div>
+        <div class="faq-item">
+          <b>Q6：同一需求反复迭代，怎么避免混乱？</b>
+          <p>建议每次按“先澄清变更点 -> 再更新 PRD/Spec -> 最后同步 Tasks”执行。</p>
+        </div>
+        <div class="faq-item">
+          <b>Q7：数据概览看哪些指标最有用？</b>
+          <p>优先关注各阶段需求数量、已通过占比、文档覆盖情况。</p>
+        </div>
+        <div class="faq-item">
+          <b>Q8：输出不符合预期时怎么办？</b>
+          <p>不要重开流程，先补充上下文，再明确输出要求，最后在同一会话中追问修订。</p>
+        </div>
+      </section>
+
+      <section class="card" id="tips" data-section>
+        <h2>7. 实用技巧</h2>
+        <ul>
+          <li>先筛选再评审，避免无关需求干扰</li>
+          <li>先做结构检查，再做措辞润色</li>
+          <li>沉淀常用提问模板为团队统一话术</li>
+          <li>固定用数据概览做短周期复盘</li>
+        </ul>
+      </section>
+
+      <section class="card" id="docs" data-section>
+        <h2>8. 相关文档</h2>
+        <ul>
+          <li>产品介绍（运营视角）：<code>md/PRODUCT_INTRO_FOR_OPERATIONS.md</code></li>
+          <li>工作报告（演进版）：<code>md/WORK_REPORT.md</code></li>
+          <li>功能与 PRD 差异分析：<code>md/PRD_vs_IMPL_GAP_ANALYSIS.md</code></li>
+          <li>面向技术团队需求文档：<code>md/TECH_TEAM_PRD_SYSTEM.md</code></li>
+        </ul>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      const links = Array.from(document.querySelectorAll('#toc a[data-target]'));
+      const sections = links
+        .map((link) => document.getElementById(link.dataset.target))
+        .filter(Boolean);
+
+      function setActive(id) {
+        links.forEach((link) => {
+          link.classList.toggle('active', link.dataset.target === id);
+        });
+      }
+
+      if (!sections.length) return;
+      setActive(sections[0].id);
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((e) => e.isIntersecting)
+            .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+          if (visible.length > 0) setActive(visible[0].target.id);
+        },
+        { root: null, rootMargin: '-20% 0px -65% 0px', threshold: 0 }
+      );
+
+      sections.forEach((section) => observer.observe(section));
+
+      links.forEach((link) => {
+        link.addEventListener('click', () => setActive(link.dataset.target));
+      });
+    })();
+  </script>
+</body>
+</html>
