@@ -12,7 +12,7 @@ The system SHALL provide a Chatbot panel in the DesignStudio right sidebar.
 - **THEN** the ChatbotPanel component shall be displayed
 
 ### Requirement: AI conversation interface
-The system SHALL provide a conversational interface for AI-assisted requirement analysis.
+The system SHALL provide a conversational interface for AI-assisted requirement analysis, and SHALL use a direct-edit input box without preview mode.
 
 #### Scenario: Display welcome message
 - **WHEN** user opens Chatbot panel
@@ -33,6 +33,23 @@ The system SHALL provide a conversational interface for AI-assisted requirement 
 - **THEN** system shall display the AI response in the chat history
 - **AND** loading indicator shall be removed
 
+#### Scenario: Enter sends and Shift+Enter creates newline
+- **WHEN** input box is focused and user presses Enter without Shift
+- **THEN** system shall send the current message directly
+- **AND** user shall not need to switch to any preview mode before sending
+
+- **WHEN** input box is focused and user presses Shift+Enter
+- **THEN** system shall insert a newline and shall NOT send the message
+
+#### Scenario: Skill panel keyboard behavior
+- **WHEN** slash skill panel is open and user presses Tab
+- **THEN** system shall return focus to the input box
+- **AND** system shall NOT send any message
+
+- **WHEN** slash skill panel is open and user presses Enter
+- **THEN** system shall execute the highlighted skill item
+- **AND** system shall send one corresponding message to chat history
+
 ### Requirement: Chat history persistence
 The system SHALL maintain chat history per requirement card.
 
@@ -48,6 +65,10 @@ The system SHALL maintain chat history per requirement card.
 - **WHEN** user submits the clarification dialog successfully
 - **THEN** system shall append one `clarification_summary` message to current card `chatHistory`
 - **AND** the appended message order shall follow existing history order (append-only at tail)
+
+#### Scenario: Persist message status and source
+- **WHEN** system writes thinking, success, failure, or fallback messages
+- **THEN** each message shall persist type/status/source metadata in chat history for rendering continuity
 
 ### Requirement: Clarification summary rendering style
 The system SHALL render clarification summary with grouped Q/A card style and long-text readability.
@@ -74,13 +95,14 @@ The system SHALL handle API errors gracefully.
 #### Scenario: API call fails
 - **WHEN** Claude API call fails
 - **THEN** system shall display an error toast notification
+- **AND** system shall write a visible assistant fallback or error message into the conversation
 - **AND** user shall be able to retry
 
 ### Requirement: Loading state
 The system SHALL show loading state during API calls.
 
 #### Scenario: Disable input during loading
-- **WHEN** API call is in progress
+- **WHEN** API call is in progress for the current send action
 - **THEN** input field shall be disabled
 - **AND** Send button shall be disabled
-- **AND** loading spinner shall be displayed
+- **AND** loading spinner shall be displayed on the in-flight assistant placeholder

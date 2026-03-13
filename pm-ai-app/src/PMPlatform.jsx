@@ -14,6 +14,58 @@ const C = {
   sb:"#1e1e2e", sbHover:"#2a2a3e", sbActive:"#313150", sbText:"#cdd6f4", sbMuted:"#6c7086",
 };
 
+const LIGHT_THEME_TOKENS = { ...C };
+const DARK_THEME_TOKENS = {
+  ink: "#e8ebf2",
+  paper: "#0f141c",
+  cream: "#141b24",
+  white: "#1a2330",
+  muted: "#93a0b4",
+  border: "#2b3747",
+  accent: "#60a5fa",
+  accentLight: "#1a2f4f",
+  accentDark: "#3b82f6",
+  success: "#34d399",
+  successLight: "#15342b",
+  warn: "#f59e0b",
+  warnLight: "#3b2c16",
+  danger: "#f87171",
+  dangerLight: "#412022",
+  purple: "#a78bfa",
+  purpleLight: "#2c2448",
+  teal: "#22d3ee",
+  tealLight: "#143845",
+  sb: "#0b1119",
+  sbHover: "#162130",
+  sbActive: "#1f2c3d",
+  sbText: "#d9e3f0",
+  sbMuted: "#8a98ab",
+};
+
+const THEME_MODE_STORAGE_KEY = "pm-ai-theme-mode";
+
+function readThemeMode() {
+  if (typeof window === "undefined") return "light";
+  try {
+    const raw = localStorage.getItem(THEME_MODE_STORAGE_KEY);
+    return raw === "dark" ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
+function applyThemeModeTokens(mode) {
+  const nextTokens = mode === "dark" ? DARK_THEME_TOKENS : LIGHT_THEME_TOKENS;
+  Object.assign(C, nextTokens);
+  COLUMNS[0].color = C.muted; COLUMNS[0].bg = mode === "dark" ? "#222b37" : "#f0ede8";
+  COLUMNS[1].color = C.accent; COLUMNS[1].bg = C.accentLight;
+  COLUMNS[2].color = C.purple; COLUMNS[2].bg = C.purpleLight;
+  COLUMNS[3].color = C.warn; COLUMNS[3].bg = C.warnLight;
+  COLUMNS[4].color = C.success; COLUMNS[4].bg = C.successLight;
+  COLUMNS[5].color = C.danger; COLUMNS[5].bg = C.dangerLight;
+  COLUMNS[6].color = C.muted; COLUMNS[6].bg = mode === "dark" ? "#222b37" : "#f0ede8";
+}
+
 const COLUMNS = [
   {id:"backlog",   label:"待评审",  color:C.muted,  bg:"#f0ede8"},
   {id:"reviewing", label:"评审中",  color:C.accent, bg:C.accentLight},
@@ -1643,7 +1695,7 @@ CREATE TABLE git_sync_records (
   }
 ];
 
-// 来源：md/PM_AI_Plagform_PRD.md 功能模块（3.0~3.7）
+// 来源：md/产品-PRD需求文档.md 功能模块（3.0~3.7）
 const PRD_SEEDED_SAMPLE_CARDS = [
   {
     id: "REQ-106",
@@ -3644,7 +3696,7 @@ function DetailDrawer({card,onClose,onAIReview,onAIDesign,reviewing,onMoveCard,s
             </div>
             {r&&(
               <div style={{border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
-                <div style={{padding:"13px 18px",background:C.ink,display:"flex",alignItems:"center",gap:10}}>
+                <div style={{padding:"13px 18px",background:"#0d0e12",display:"flex",alignItems:"center",gap:10}}>
                   <span style={{fontWeight:700,fontSize:13,color:"#fff"}}>✦ AI 评审报告</span>
                   {showDemoReviewTag && <span style={{fontSize:11,color:C.warn,background:C.warnLight,padding:"2px 8px",borderRadius:999,fontWeight:600}}>示例数据（非 AI 实时生成）</span>}
                   <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",fontSize:12,padding:"2px 9px",borderRadius:4,background:scoreBg(r.score),color:scoreColor(r.score),fontWeight:700}}>{r.score}/100</span>
@@ -3816,7 +3868,7 @@ function DetailDrawer({card,onClose,onAIReview,onAIDesign,reviewing,onMoveCard,s
 }
 
 /* ═══════════════════════════ DESIGN STUDIO ══════════════════════════════════ */
-function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onSave }) {
+function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onSave, themeMode, onToggleThemeMode }) {
   const [selectedKey, setSelectedKey] = useState(`${focusCardId}:prd`);
   const [generating, setGenerating] = useState(null); // "REQ-001:prd"
   const [editMode, setEditMode] = useState(false);
@@ -3905,7 +3957,7 @@ function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onSave }) {
       `}</style>
 
       {/* Top bar */}
-      <div style={{background:C.ink,borderBottom:"1px solid #252535",padding:"0 0 0 0",display:"flex",alignItems:"center",gap:0,flexShrink:0,height:44}}>
+      <div style={{background:"#0d0e12",borderBottom:"1px solid #252535",padding:"0 0 0 0",display:"flex",alignItems:"center",gap:0,flexShrink:0,height:44}}>
         <button onClick={onBack} style={{padding:"0 18px",height:"100%",background:"none",border:"none",borderRight:"1px solid #252535",cursor:"pointer",color:"#888",fontSize:12,display:"flex",alignItems:"center",gap:7,transition:"color 0.15s"}}
           onMouseEnter={e=>e.currentTarget.style.color="#fff"} onMouseLeave={e=>e.currentTarget.style.color="#888"}>
           ← 返回看板
@@ -3918,6 +3970,7 @@ function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onSave }) {
           {selDocMeta && <span style={{fontSize:12,color:selDocMeta.color,fontWeight:600}}>{selDocMeta.label}</span>}
         </div>
         <div style={{marginLeft:"auto",padding:"0 16px",display:"flex",gap:8,alignItems:"center"}}>
+          <ThemeModeToggle mode={themeMode} onToggle={onToggleThemeMode} />
           {selContent && !editMode && (
             <button onClick={enterEdit}
               style={{padding:"5px 14px",background:"#313150",border:"1px solid #3d3d60",borderRadius:5,cursor:"pointer",fontSize:12,color:C.sbText,display:"flex",alignItems:"center",gap:6}}>
@@ -5130,13 +5183,16 @@ function DocEditor({ card, docType, proposalName, content, editMode, editText, o
 }
 
 // ── ChatbotPanel ──
-function ChatbotPanel({ card, onSendMessage }) {
+function ChatbotPanel({ card, allCards, onSendMessage }) {
   const [input, setInput] = useState("");
+  const [inputCursor, setInputCursor] = useState(0);
   const [loading, setLoading] = useState(false);
   const [expandedTrace, setExpandedTrace] = useState({});
   const [expandedTraceSkill, setExpandedTraceSkill] = useState({});
   const [toolPanelOpen, setToolPanelOpen] = useState(false);
   const [toolActiveIndex, setToolActiveIndex] = useState(0);
+  const [mentionPanelOpen, setMentionPanelOpen] = useState(false);
+  const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const currentModel = localStorage.getItem('ai_model_selected') || 'claude';
@@ -5162,6 +5218,70 @@ function ChatbotPanel({ card, onSendMessage }) {
     });
   }, [slashQuery, toolRegistry]);
 
+  const mentionMeta = useMemo(() => {
+    const text = String(input || '');
+    const cursor = Math.max(0, Math.min(inputCursor, text.length));
+    const beforeCursor = text.slice(0, cursor);
+    const triggerIndex = beforeCursor.lastIndexOf('@');
+    if (triggerIndex < 0) {
+      return { active: false, query: '', triggerIndex: -1, cursor };
+    }
+    const prevChar = triggerIndex === 0 ? '' : beforeCursor[triggerIndex - 1];
+    if (prevChar && !/[\s\n]/.test(prevChar)) {
+      return { active: false, query: '', triggerIndex: -1, cursor };
+    }
+    const query = beforeCursor.slice(triggerIndex + 1);
+    if (/[\s\n]/.test(query)) {
+      return { active: false, query: '', triggerIndex: -1, cursor };
+    }
+    return { active: true, query, triggerIndex, cursor };
+  }, [input, inputCursor]);
+
+  const mentionQuery = useMemo(() => mentionMeta.query.trim().toLowerCase(), [mentionMeta.query]);
+
+  const mentionGroups = useMemo(() => {
+    const cards = Array.isArray(allCards) ? allCards : [];
+    const currentTags = new Set(Array.isArray(card?.tags) ? card.tags : []);
+    const requirements = cards
+      .filter((item) => item?.id && item.id !== card?.id)
+      .map((item) => {
+        const itemTags = Array.isArray(item.tags) ? item.tags : [];
+        const score = itemTags.reduce((acc, tag) => acc + (currentTags.has(tag) ? 1 : 0), 0) + (item.priority === card?.priority ? 1 : 0);
+        return {
+          key: `req-${item.id}`,
+          group: 'requirements',
+          groupLabel: '相关需求',
+          label: String(item.title || item.id),
+          subtitle: [item.id, item.priority].filter(Boolean).join(' · '),
+          searchText: [item.id, item.title, item.desc, ...(Array.isArray(item.tags) ? item.tags : [])].join(' ').toLowerCase(),
+          score,
+        };
+      })
+      .filter((item) => !mentionQuery || item.searchText.includes(mentionQuery))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 6);
+
+    const refs = Array.isArray(card?.references) ? card.references : [];
+    const docs = refs
+      .map((ref, idx) => ({
+        key: `doc-${idx}-${ref?.type || 'other'}`,
+        group: 'docs',
+        groupLabel: '相关文档',
+        label: String(ref?.title || ref?.url || '未命名文档'),
+        subtitle: ref?.type ? `${ref.type}${ref?.url ? ` · ${ref.url}` : ''}` : String(ref?.url || ''),
+        searchText: [ref?.title, ref?.url, ref?.type].filter(Boolean).join(' ').toLowerCase(),
+      }))
+      .filter((item) => !mentionQuery || item.searchText.includes(mentionQuery))
+      .slice(0, 6);
+
+    return [
+      { key: 'requirements', label: '相关需求', items: requirements },
+      { key: 'docs', label: '相关文档', items: docs },
+    ];
+  }, [allCards, card, mentionQuery]);
+
+  const mentionItems = useMemo(() => mentionGroups.flatMap((group) => group.items), [mentionGroups]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [chatHistory.length]);
@@ -5174,6 +5294,23 @@ function ChatbotPanel({ card, onSendMessage }) {
   useEffect(() => {
     setToolActiveIndex(0);
   }, [slashQuery, toolPanelOpen]);
+
+  useEffect(() => {
+    const slashMode = String(input || '').trimStart().startsWith('/');
+    setMentionPanelOpen(mentionMeta.active && !slashMode);
+  }, [input, mentionMeta.active]);
+
+  useEffect(() => {
+    setMentionActiveIndex(0);
+  }, [mentionQuery, mentionPanelOpen]);
+
+  useEffect(() => {
+    if (!mentionItems.length) {
+      setMentionActiveIndex(0);
+      return;
+    }
+    setMentionActiveIndex((prev) => Math.max(0, Math.min(prev, mentionItems.length - 1)));
+  }, [mentionItems]);
 
   const executeTool = async (tool) => {
     if (!tool || loading) return;
@@ -5205,6 +5342,24 @@ function ChatbotPanel({ card, onSendMessage }) {
     await onSendMessage(message, "chatbot");
     setLoading(false);
   };
+
+  const insertMentionItem = useCallback((item) => {
+    if (!item || !mentionMeta.active) return;
+    const text = String(input || '');
+    const beforeMention = text.slice(0, mentionMeta.triggerIndex);
+    const afterCursor = text.slice(mentionMeta.cursor);
+    const insertToken = `@${item.label} `;
+    const nextValue = `${beforeMention}${insertToken}${afterCursor}`;
+    const nextCursor = (beforeMention + insertToken).length;
+    setInput(nextValue);
+    setInputCursor(nextCursor);
+    setMentionPanelOpen(false);
+    requestAnimationFrame(() => {
+      if (!inputRef.current) return;
+      inputRef.current.focus();
+      inputRef.current.setSelectionRange(nextCursor, nextCursor);
+    });
+  }, [input, mentionMeta]);
 
   const handleRetry = async (msg) => {
     const originMessage = String(msg?.meta?.userMessage || '').trim();
@@ -5453,8 +5608,43 @@ function ChatbotPanel({ card, onSendMessage }) {
           <textarea
             ref={inputRef}
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={e => {
+              setInput(e.target.value);
+              setInputCursor(e.target.selectionStart || 0);
+            }}
+            onClick={e => setInputCursor(e.currentTarget.selectionStart || 0)}
+            onKeyUp={e => setInputCursor(e.currentTarget.selectionStart || 0)}
+            onSelect={e => setInputCursor(e.currentTarget.selectionStart || 0)}
             onKeyDown={(e) => {
+              if (mentionPanelOpen) {
+                if (e.key === 'Tab' || e.key === 'Escape') {
+                  e.preventDefault();
+                  setMentionPanelOpen(false);
+                  inputRef.current?.focus();
+                  return;
+                }
+                if (mentionItems.length > 0) {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setMentionActiveIndex(prev => (prev + 1) % mentionItems.length);
+                    return;
+                  }
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setMentionActiveIndex(prev => (prev - 1 + mentionItems.length) % mentionItems.length);
+                    return;
+                  }
+                }
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (mentionItems.length > 0) {
+                    insertMentionItem(mentionItems[mentionActiveIndex] || mentionItems[0]);
+                  } else {
+                    setMentionPanelOpen(false);
+                  }
+                  return;
+                }
+              }
               if (toolPanelOpen) {
                 if (e.key === 'Tab') {
                   e.preventDefault();
@@ -5490,11 +5680,44 @@ function ChatbotPanel({ card, onSendMessage }) {
                 handleSend();
               }
             }}
-            placeholder="输入你的问题（支持 Markdown，输入 / 调用技能）..."
+            placeholder="直接提问，@添加上下文，/使用命令和技能"
             disabled={loading}
             rows={4}
             style={{width:"100%",minHeight:92,maxHeight:220,padding:"10px 12px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,background:C.white,outline:"none",resize:"vertical",lineHeight:1.55,fontFamily:"'DM Mono',monospace",boxSizing:"border-box"}}
           />
+          {mentionPanelOpen && (
+            <div style={{position:'absolute',left:0,right:0,bottom:'calc(100% + 8px)',maxHeight:260,overflowY:'auto',background:C.white,border:`1px solid ${C.border}`,borderRadius:10,boxShadow:'0 10px 28px rgba(0,0,0,0.12)',padding:'8px 0',zIndex:11}}>
+              <div style={{padding:'4px 12px 8px',fontSize:11,color:C.muted,fontWeight:700}}>添加上下文</div>
+              {mentionItems.length === 0 ? (
+                <div style={{padding:'6px 12px',fontSize:12,color:C.muted}}>暂无可选的相关需求或相关文档。</div>
+              ) : mentionGroups.map((group) => {
+                if (!group.items.length) return null;
+                return (
+                  <div key={group.key}>
+                    <div style={{padding:'4px 12px',fontSize:10,color:C.muted,fontWeight:700,letterSpacing:0.6,textTransform:'uppercase'}}>{group.label}</div>
+                    {group.items.map((item) => {
+                      const flatIndex = mentionItems.findIndex((candidate) => candidate.key === item.key);
+                      const active = flatIndex === mentionActiveIndex;
+                      return (
+                        <button
+                          key={item.key}
+                          onMouseEnter={() => setMentionActiveIndex(flatIndex)}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            insertMentionItem(item);
+                          }}
+                          style={{width:'100%',textAlign:'left',border:'none',background:active ? C.accentLight : 'transparent',padding:'9px 12px',cursor:'pointer',display:'flex',flexDirection:'column',gap:2}}
+                        >
+                          <span style={{fontSize:12,color:C.ink,fontWeight:600}}>{item.label}</span>
+                          {item.subtitle && <span style={{fontSize:11,color:C.muted,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.subtitle}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {toolPanelOpen && (
             <div style={{position:'absolute',left:0,right:0,bottom:'calc(100% + 8px)',maxHeight:260,overflowY:'auto',background:C.white,border:`1px solid ${C.border}`,borderRadius:10,boxShadow:'0 10px 28px rgba(0,0,0,0.12)',padding:'8px 0',zIndex:10}}>
               <div style={{padding:'4px 12px 8px',fontSize:11,color:C.muted,fontWeight:700}}>技能与命令</div>
@@ -5536,7 +5759,7 @@ function ChatbotPanel({ card, onSendMessage }) {
             清空
           </button>
         </div>
-        <div style={{fontSize:10,color:C.muted,marginTop:6}}>Enter 发送，Shift+Enter 换行，输入 / 打开技能面板，Tab 返回输入</div>
+        <div style={{fontSize:10,color:C.muted,marginTop:6}}>Enter 发送，Shift+Enter 换行，输入 @ 添加上下文，输入 / 打开技能面板，Tab 返回输入</div>
       </div>
 
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -5936,7 +6159,7 @@ function RightPanel({ currentCard, allCards, activeTab, onTabChange, onSendMessa
       {/* Content */}
       <div style={{flex:1,overflow:"hidden"}}>
         {activeTab === "chatbot" ? (
-          <ChatbotPanel card={currentCard} onSendMessage={onSendMessage}/>
+          <ChatbotPanel card={currentCard} allCards={allCards} onSendMessage={onSendMessage}/>
         ) : activeTab === "reference" ? (
           <ReferencePanel currentCard={currentCard} allCards={allCards} onUpdateRefs={onUpdateRefs}/>
         ) : (
@@ -5968,7 +6191,7 @@ function ProposalReviewDrawer({ card, onClose, onConfirm, reviewResult, reviewin
   return (
     <div style={{position:"fixed",right:0,top:0,bottom:0,width:"52vw",minWidth:520,background:C.white,borderLeft:`1px solid ${C.border}`,zIndex:200,boxShadow:"-12px 0 48px rgba(0,0,0,0.18)",display:"flex",flexDirection:"column",animation:"slideIn 0.22s ease"}}>
       {/* Header */}
-      <div style={{padding:"18px 28px 14px",borderBottom:`1px solid ${C.border}`,flexShrink:0,background:C.ink}}>
+      <div style={{padding:"18px 28px 14px",borderBottom:`1px solid ${C.border}`,flexShrink:0,background:"#0d0e12"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{flex:1}}>
             <div style={{fontSize:11,color:"#6c7086",marginBottom:4,fontFamily:"'DM Mono',monospace"}}>{card.id}</div>
@@ -5989,7 +6212,7 @@ function ProposalReviewDrawer({ card, onClose, onConfirm, reviewResult, reviewin
         )}
         {r && (
           <div style={{border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
-            <div style={{padding:"13px 18px",background:C.ink,display:"flex",alignItems:"center",gap:10}}>
+            <div style={{padding:"13px 18px",background:"#0d0e12",display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontWeight:700,fontSize:13,color:"#fff"}}>✦ AI 评审报告</span>
               <span style={{marginLeft:"auto",fontFamily:"'DM Mono',monospace",fontSize:12,padding:"2px 9px",borderRadius:4,background:scoreBg(r.score),color:scoreColor(r.score),fontWeight:700}}>{r.score}/100</span>
             </div>
@@ -6070,7 +6293,7 @@ function ProposalReviewDrawer({ card, onClose, onConfirm, reviewResult, reviewin
 }
 
 // ── DetailPage ──
-function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, onUpdateCard, projectConfig, onNavigateToSettings, onUpdateRefs }) {
+function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, onUpdateCard, projectConfig, onNavigateToSettings, onUpdateRefs, themeMode, onToggleThemeMode }) {
   const initialViewportWidth = getViewportWidth();
   const storedPaneWidths = readDetailLayoutWidths();
   const initialLeftWidth = clampLeftPaneWidth(storedPaneWidths.left, storedPaneWidths.right, initialViewportWidth);
@@ -6108,6 +6331,7 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, o
   const [showClarificationDialog, setShowClarificationDialog] = useState(false);
   const [clarificationQuestions, setClarificationQuestions] = useState([]);
   const [loadingClarificationQuestions, setLoadingClarificationQuestions] = useState(false);
+  const [showTopSettings, setShowTopSettings] = useState(false);
 
   // 切换文档时重置编辑状态
   useEffect(() => { setEditMode(false); }, [selectedKey]);
@@ -6422,6 +6646,7 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, o
       { value: 'claude', label: 'Claude' },
       { value: 'glm', label: 'GLM' },
       { value: 'ark', label: 'ARK' },
+      { value: 'kimi', label: 'Kimi' },
     ];
     const customReady = Boolean(
       String(projectConfig?.ai?.customKey || '').trim()
@@ -6654,7 +6879,7 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, o
       `}</style>
 
       {/* Top bar */}
-      <div style={{background:C.ink,borderBottom:"1px solid #252535",padding:"0 16px",display:"flex",alignItems:"center",gap:12,flexShrink:0,height:48}}>
+      <div style={{background:"#0d0e12",borderBottom:"1px solid #252535",padding:"0 16px",display:"flex",alignItems:"center",gap:12,flexShrink:0,height:48}}>
         <button onClick={onBack} style={{padding:"0 14px",height:"100%",background:"none",border:"none",cursor:"pointer",color:C.sbText,fontSize:12,display:"flex",alignItems:"center",gap:6,transition:"color 0.15s"}}
           onMouseEnter={e => e.currentTarget.style.color = "#fff"} onMouseLeave={e => e.currentTarget.style.color = C.sbText}>
           ← 返回看板
@@ -6686,14 +6911,23 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, o
               ))}
             </select>
           </div>
-          <button
-            onClick={onNavigateToSettings}
-            style={{height:26,padding:"0 9px",background:"#1a1a1a",color:"#8b8ba3",border:"1px solid #303045",borderRadius:5,cursor:"pointer",fontSize:12}}
-            onMouseEnter={e => e.currentTarget.style.color = "#fff"}
-            onMouseLeave={e => e.currentTarget.style.color = "#8b8ba3"}
-          >
-            ⚙ 设置
-          </button>
+          <div style={{position:"relative"}}>
+            <button
+              onClick={() => setShowTopSettings(v => !v)}
+              title="设置"
+              style={{height:26,padding:"0 9px",background:showTopSettings?"#2a2a2a":"#1a1a1a",color:showTopSettings?"#fff":"#8b8ba3",border:"1px solid #303045",borderRadius:5,cursor:"pointer",fontSize:12,transition:"all 0.15s"}}
+            >
+              ⚙
+            </button>
+            {showTopSettings && (
+              <SettingsDropdown
+                onClose={() => setShowTopSettings(false)}
+                onNavigateToSettings={onNavigateToSettings}
+                themeMode={themeMode}
+                onToggleThemeMode={onToggleThemeMode}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -6994,7 +7228,8 @@ const DEFAULT_PROJECT_CONFIG = {
     anthropicKey: '', anthropicBaseUrl: '', anthropicModel: '',
     glmKey: '',       glmBaseUrl: '',       glmModel: '',
     arkKey: '',       arkBaseUrl: '',       arkModel: '',
-    customName: '', customBaseUrl: '', customModel: '', customKey: '', customAuthStyle: 'Bearer',
+    kimiKey: '',      kimiBaseUrl: '',      kimiModel: '',
+    customName: '', customBaseUrl: '', customModel: '', customKey: '', customAuthStyle: 'Bearer', customFormat: 'openai',
   },
   git: { profiles: [], bindingsByAppId: {}, defaultProfileIds: [] },
   sdd: { framework: 'openspec', templates: { proposal: '', design: '', spec: '', tasks: '' } },
@@ -7034,11 +7269,15 @@ function loadProjectConfig() {
         arkKey:           localStorage.getItem('ai_model_ark_key')           || base.ai?.arkKey           || '',
         arkBaseUrl:       localStorage.getItem('ai_model_ark_baseurl')       || base.ai?.arkBaseUrl       || '',
         arkModel:         localStorage.getItem('ai_model_ark_modelname')     || base.ai?.arkModel         || '',
+        kimiKey:          localStorage.getItem('ai_model_kimi_key')          || base.ai?.kimiKey          || '',
+        kimiBaseUrl:      localStorage.getItem('ai_model_kimi_baseurl')      || base.ai?.kimiBaseUrl      || '',
+        kimiModel:        localStorage.getItem('ai_model_kimi_modelname')    || base.ai?.kimiModel        || '',
         customName:       localStorage.getItem('ai_model_custom_name')       || base.ai?.customName       || '',
         customBaseUrl:    localStorage.getItem('ai_model_custom_baseurl')    || base.ai?.customBaseUrl    || '',
         customModel:      localStorage.getItem('ai_model_custom_model')      || base.ai?.customModel      || '',
         customKey:        localStorage.getItem('ai_model_custom_key')        || base.ai?.customKey        || '',
         customAuthStyle:  localStorage.getItem('ai_model_custom_authstyle')  || base.ai?.customAuthStyle  || 'Bearer',
+        customFormat:     localStorage.getItem('ai_model_custom_format')     || base.ai?.customFormat     || 'openai',
       },
       git: normalizeGitConfig(base.git),
       sdd: { ...DEFAULT_PROJECT_CONFIG.sdd, ...(base.sdd || {}) },
@@ -7063,16 +7302,20 @@ function saveProjectConfig(config) {
   set('ai_model_ark_key',           ai.arkKey);
   set('ai_model_ark_baseurl',       ai.arkBaseUrl);
   set('ai_model_ark_modelname',     ai.arkModel);
+  set('ai_model_kimi_key',          ai.kimiKey);
+  set('ai_model_kimi_baseurl',      ai.kimiBaseUrl);
+  set('ai_model_kimi_modelname',    ai.kimiModel);
   set('ai_model_custom_name',       ai.customName);
   set('ai_model_custom_baseurl',    ai.customBaseUrl);
   set('ai_model_custom_model',      ai.customModel);
   set('ai_model_custom_key',        ai.customKey);
   set('ai_model_custom_authstyle',  ai.customAuthStyle);
+  set('ai_model_custom_format',     ai.customFormat);
   if (normalizedConfig.skills) localStorage.setItem('ai_skill_prompts', JSON.stringify(normalizedConfig.skills));
   return normalizedConfig;
 }
 
-function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
+function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggleThemeMode }) {
   const [activeNav, setActiveNav]       = useState('project');
   const [projectSpaceIds, setProjectSpaceIds]         = useState(() => toIdArray(projectConfig.project?.spaceIds));
   const [projectSubsystemIds, setProjectSubsystemIds] = useState(() => toIdArray(projectConfig.project?.subsystemIds));
@@ -7082,10 +7325,12 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
   const [anthropicKey, setAnthropicKey] = useState(projectConfig.ai.anthropicKey);
   const [glmKey, setGlmKey]             = useState(projectConfig.ai.glmKey);
   const [arkKey, setArkKey]             = useState(projectConfig.ai.arkKey || '');
+  const [kimiKey, setKimiKey]           = useState(projectConfig.ai.kimiKey || '');
   // Show/hide key toggles
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [showGlmKey, setShowGlmKey]             = useState(false);
   const [showArkKey, setShowArkKey]             = useState(false);
+  const [showKimiKey, setShowKimiKey]           = useState(false);
   const [showCustomKey, setShowCustomKey]       = useState(false);
   // BaseURL / ModelName overrides
   const [anthropicBaseUrl, setAnthropicBaseUrl] = useState(projectConfig.ai.anthropicBaseUrl || '');
@@ -7094,12 +7339,15 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
   const [glmModel, setGlmModel]                 = useState(projectConfig.ai.glmModel || '');
   const [arkBaseUrl, setArkBaseUrl]             = useState(projectConfig.ai.arkBaseUrl || '');
   const [arkModel, setArkModel]                 = useState(projectConfig.ai.arkModel || '');
+  const [kimiBaseUrl, setKimiBaseUrl]           = useState(projectConfig.ai.kimiBaseUrl || '');
+  const [kimiModel, setKimiModel]               = useState(projectConfig.ai.kimiModel || '');
   // Custom model fields
   const [customName, setCustomName]             = useState(projectConfig.ai.customName || '');
   const [customBaseUrl, setCustomBaseUrl]       = useState(projectConfig.ai.customBaseUrl || '');
   const [customModel, setCustomModel]           = useState(projectConfig.ai.customModel || '');
   const [customKey, setCustomKey]               = useState(projectConfig.ai.customKey || '');
   const [customAuthStyle, setCustomAuthStyle]   = useState(projectConfig.ai.customAuthStyle || 'Bearer');
+  const [customFormat, setCustomFormat]           = useState(projectConfig.ai.customFormat || 'openai');
   const initialGitConfig = useMemo(() => normalizeGitConfig(projectConfig.git), [projectConfig.git]);
   const [gitProfiles, setGitProfiles] = useState(initialGitConfig.profiles);
   const [gitBindingsByAppId, setGitBindingsByAppId] = useState(initialGitConfig.bindingsByAppId);
@@ -7255,7 +7503,7 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
         setAiTestStatus('success');
         setAiTestMsg(`测试成功（Claude）: ${data.content?.[0]?.text?.slice(0, 40) || 'OK'}`);
       } else if (aiModel === 'glm') {
-        const endpoint = glmBaseUrl.trim() || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+        const endpoint = glmBaseUrl.trim() || '/api/glm/api/paas/v4/chat/completions';
         res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${glmKey}` },
@@ -7266,7 +7514,7 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
         setAiTestStatus('success');
         setAiTestMsg(`测试成功（GLM）: ${data.choices?.[0]?.message?.content?.slice(0, 40) || 'OK'}`);
       } else if (aiModel === 'ark') {
-        const base = arkBaseUrl.trim() || 'https://ark.cn-beijing.volces.com/api/coding/v3';
+        const base = arkBaseUrl.trim() || '/api/ark/api/coding/v3';
         res = await fetch(`${base}/chat/completions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${arkKey}` },
@@ -7276,19 +7524,42 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
         if (!res.ok || data.error) throw new Error(data?.error?.message || `HTTP ${res.status}`);
         setAiTestStatus('success');
         setAiTestMsg(`测试成功（ARK）: ${data.choices?.[0]?.message?.content?.slice(0, 40) || 'OK'}`);
-      } else if (aiModel === 'custom') {
-        const headers = { 'Content-Type': 'application/json' };
-        if (customAuthStyle === 'x-api-key') headers['x-api-key'] = customKey;
-        else headers['Authorization'] = `Bearer ${customKey}`;
-        res = await fetch(`${customBaseUrl.trim()}/chat/completions`, {
+      } else if (aiModel === 'kimi') {
+        const endpoint = kimiBaseUrl.trim() || '/api/kimi/v1/messages';
+        res = await fetch(endpoint, {
           method: 'POST',
-          headers,
-          body: JSON.stringify({ model: customModel.trim(), max_tokens: 5, messages: [{ role: 'user', content: 'Hi' }] }),
+          headers: { 'Content-Type': 'application/json', 'x-api-key': kimiKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model: kimiModel.trim() || 'kimi-latest', max_tokens: 5, messages: [{ role: 'user', content: 'Hi' }] }),
         });
         data = await res.json();
         if (!res.ok || data.error) throw new Error(data?.error?.message || `HTTP ${res.status}`);
         setAiTestStatus('success');
-        setAiTestMsg(`测试成功（自定义）: ${data.choices?.[0]?.message?.content?.slice(0, 40) || 'OK'}`);
+        setAiTestMsg(`测试成功（Kimi）: ${data.content?.[0]?.text?.slice(0, 40) || 'OK'}`);
+      } else if (aiModel === 'custom') {
+        if (customFormat === 'anthropic') {
+          res = await fetch(`${customBaseUrl.trim().replace(/\/+$/, '')}/v1/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': customKey, 'anthropic-version': '2023-06-01' },
+            body: JSON.stringify({ model: customModel.trim(), max_tokens: 5, messages: [{ role: 'user', content: 'Hi' }] }),
+          });
+          data = await res.json();
+          if (!res.ok || data.error) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+          setAiTestStatus('success');
+          setAiTestMsg(`测试成功（自定义/Anthropic）: ${data.content?.[0]?.text?.slice(0, 40) || 'OK'}`);
+        } else {
+          const headers = { 'Content-Type': 'application/json' };
+          if (customAuthStyle === 'x-api-key') headers['x-api-key'] = customKey;
+          else headers['Authorization'] = `Bearer ${customKey}`;
+          res = await fetch(`${customBaseUrl.trim().replace(/\/+$/, '')}/chat/completions`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ model: customModel.trim(), max_tokens: 5, messages: [{ role: 'user', content: 'Hi' }] }),
+          });
+          data = await res.json();
+          if (!res.ok || data.error) throw new Error(data?.error?.message || `HTTP ${res.status}`);
+          setAiTestStatus('success');
+          setAiTestMsg(`测试成功（自定义）: ${data.choices?.[0]?.message?.content?.slice(0, 40) || 'OK'}`);
+        }
       }
     } catch (e) {
       setAiTestStatus('error');
@@ -7302,7 +7573,8 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
       anthropicKey, anthropicBaseUrl, anthropicModel,
       glmKey, glmBaseUrl, glmModel,
       arkKey, arkBaseUrl, arkModel,
-      customName, customBaseUrl, customModel, customKey, customAuthStyle,
+      kimiKey, kimiBaseUrl, kimiModel,
+      customName, customBaseUrl, customModel, customKey, customAuthStyle, customFormat,
     }};
     const normalizedConfig = saveProjectConfig(config);
     onSave(normalizedConfig);
@@ -7484,13 +7756,16 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: C.paper, fontFamily: "'Noto Sans SC',sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
       {/* Header */}
-      <div style={{ background: C.ink, padding: '0 24px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #1a1a1a', flexShrink: 0, height: 56 }}>
+      <div style={{ background: "#0d0e12", padding: '0 24px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #1a1a1a', flexShrink: 0, height: 56 }}>
         <button onClick={onBack} style={{ padding: '0 14px', height: '100%', background: 'none', border: 'none', cursor: 'pointer', color: C.sbText, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
           onMouseEnter={e => e.currentTarget.style.color = '#fff'} onMouseLeave={e => e.currentTarget.style.color = C.sbText}>
           ← 返回看板
         </button>
         <div style={{ width: 1, height: 20, background: '#252535' }}/>
         <span style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>项目配置</span>
+        <div style={{ marginLeft: 'auto' }}>
+          <ThemeModeToggle mode={themeMode} onToggle={onToggleThemeMode} />
+        </div>
       </div>
 
       {/* Body: left nav + right content */}
@@ -7739,7 +8014,8 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
                   <option value="claude">Claude Sonnet (Anthropic)</option>
                   <option value="glm">GLM-4 (智谱 Zhipu)</option>
                   <option value="ark">ARK Code Latest (火山方舟)</option>
-                  <option value="custom">自定义模型（OpenAI Compatible）</option>
+                  <option value="kimi">Kimi (Moonshot)</option>
+                  <option value="custom">自定义模型（OpenAI / Anthropic Compatible）</option>
                 </select>
 
                 {/* Claude 配置 */}
@@ -7759,11 +8035,15 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
                     <label style={labelStyle}>API Base URL</label>
                     <input value={anthropicBaseUrl} onChange={e => setAnthropicBaseUrl(e.target.value)}
                       placeholder="/api/anthropic/v1/messages" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>留空使用默认端点，可填写代理地址。</div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>留空使用默认端点，可填写代理地址。</div>
+                    <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
+                      {anthropicBaseUrl ? `实际请求地址: 自定义（${anthropicBaseUrl}）` : '实际请求地址: https://api.anthropic.com/v1/messages'}
+                    </div>
 
                     <label style={labelStyle}>Model Name</label>
                     <input value={anthropicModel} onChange={e => setAnthropicModel(e.target.value)}
-                      placeholder="claude-sonnet-4-20250514" style={{ ...inputStyle, marginBottom: 20 }}/>
+                      placeholder="claude-sonnet-4-20250514" style={{ ...inputStyle, marginBottom: 4 }}/>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: claude-sonnet-4-20250514, claude-haiku-4-5-20251001</div>
                   </>
                 )}
 
@@ -7784,10 +8064,14 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
                     </div>
                     <label style={labelStyle}>API Base URL</label>
                     <input value={glmBaseUrl} onChange={e => setGlmBaseUrl(e.target.value)}
-                      placeholder="https://open.bigmodel.cn/api/paas/v4/chat/completions" style={{ ...inputStyle, marginBottom: 12 }}/>
+                      placeholder="https://open.bigmodel.cn/api/paas/v4/chat/completions" style={{ ...inputStyle, marginBottom: 4 }}/>
+                    <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
+                      {glmBaseUrl ? `实际请求地址: 自定义（${glmBaseUrl}）` : '实际请求地址: https://open.bigmodel.cn/api/paas/v4/chat/completions'}
+                    </div>
                     <label style={labelStyle}>Model Name</label>
                     <input value={glmModel} onChange={e => setGlmModel(e.target.value)}
-                      placeholder="glm-4" style={{ ...inputStyle, marginBottom: 20 }}/>
+                      placeholder="glm-4" style={{ ...inputStyle, marginBottom: 4 }}/>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: glm-4, glm-4-flash, glm-4-long</div>
                   </>
                 )}
 
@@ -7808,10 +8092,42 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
                     </div>
                     <label style={labelStyle}>API Base URL</label>
                     <input value={arkBaseUrl} onChange={e => setArkBaseUrl(e.target.value)}
-                      placeholder="https://ark.cn-beijing.volces.com/api/coding/v3" style={{ ...inputStyle, marginBottom: 12 }}/>
+                      placeholder="https://ark.cn-beijing.volces.com/api/coding/v3" style={{ ...inputStyle, marginBottom: 4 }}/>
+                    <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
+                      {arkBaseUrl ? `实际请求地址: 自定义（${arkBaseUrl}）` : '实际请求地址: https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions'}
+                    </div>
                     <label style={labelStyle}>Model Name</label>
                     <input value={arkModel} onChange={e => setArkModel(e.target.value)}
-                      placeholder="ark-code-latest" style={{ ...inputStyle, marginBottom: 20 }}/>
+                      placeholder="ark-code-latest" style={{ ...inputStyle, marginBottom: 4 }}/>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: ark-code-latest</div>
+                  </>
+                )}
+
+                {/* Kimi 配置 */}
+                {aiModel === 'kimi' && (
+                  <>
+                    <label style={labelStyle}>Kimi API Key</label>
+                    <div style={{ position: 'relative', marginBottom: 4 }}>
+                      <input type={showKimiKey ? 'text' : 'password'} value={kimiKey} onChange={e => setKimiKey(e.target.value)}
+                        placeholder="sk-kimi-..." style={{ ...inputStyle, paddingRight: 36 }}/>
+                      <button onClick={() => setShowKimiKey(v => !v)} tabIndex={-1}
+                        style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: C.muted, lineHeight: 1 }}>
+                        {showKimiKey ? '🙈' : '👁'}
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>
+                      在 Kimi 会员页面生成 API Key
+                    </div>
+                    <label style={labelStyle}>API Base URL</label>
+                    <input value={kimiBaseUrl} onChange={e => setKimiBaseUrl(e.target.value)}
+                      placeholder="/api/kimi/v1/messages（默认走本地代理）" style={{ ...inputStyle, marginBottom: 4 }}/>
+                    <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
+                      {kimiBaseUrl ? `实际请求地址: 自定义（${kimiBaseUrl}）` : '实际请求地址: https://api.kimi.com/coding/v1/messages'}
+                    </div>
+                    <label style={labelStyle}>Model Name</label>
+                    <input value={kimiModel} onChange={e => setKimiModel(e.target.value)}
+                      placeholder="kimi-latest" style={{ ...inputStyle, marginBottom: 4 }}/>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: kimi-k2.5, moonshot-v1-8k, moonshot-v1-32k, moonshot-v1-128k</div>
                   </>
                 )}
 
@@ -7825,7 +8141,15 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
                     <label style={labelStyle}>Base URL</label>
                     <input value={customBaseUrl} onChange={e => setCustomBaseUrl(e.target.value)}
                       placeholder="https://api.openai.com" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>不含路径，系统自动追加 /chat/completions</div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>
+                      {customFormat === 'anthropic' ? '不含路径，系统自动追加 /v1/messages' : '不含路径，系统自动追加 /chat/completions'}
+                    </div>
+                    {customBaseUrl && (
+                      <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
+                        {customFormat === 'anthropic' ? `实际请求地址: ${customBaseUrl}/v1/messages` : `实际请求地址: ${customBaseUrl}/chat/completions`}
+                      </div>
+                    )}
+                    {!customBaseUrl && <div style={{ marginBottom: 8 }}/>}
 
                     <label style={labelStyle}>Model Name</label>
                     <input value={customModel} onChange={e => setCustomModel(e.target.value)}
@@ -7841,9 +8165,21 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
                       </button>
                     </div>
 
+                    <label style={labelStyle}>API 格式</label>
+                    <select value={customFormat} onChange={e => {
+                      const fmt = e.target.value;
+                      setCustomFormat(fmt);
+                      if (fmt === 'anthropic') setCustomAuthStyle('x-api-key');
+                    }}
+                      style={{ ...inputStyle, marginBottom: 12, fontFamily: 'inherit', cursor: 'pointer' }}>
+                      <option value="openai">OpenAI Compatible</option>
+                      <option value="anthropic">Anthropic</option>
+                    </select>
+
                     <label style={labelStyle}>鉴权方式</label>
                     <select value={customAuthStyle} onChange={e => setCustomAuthStyle(e.target.value)}
-                      style={{ ...inputStyle, marginBottom: 20, fontFamily: 'inherit', cursor: 'pointer' }}>
+                      disabled={customFormat === 'anthropic'}
+                      style={{ ...inputStyle, marginBottom: 20, fontFamily: 'inherit', cursor: 'pointer', opacity: customFormat === 'anthropic' ? 0.6 : 1 }}>
                       <option value="Bearer">Bearer Token（Authorization: Bearer &lt;key&gt;）</option>
                       <option value="x-api-key">x-api-key Header（x-api-key: &lt;key&gt;）</option>
                     </select>
@@ -7867,11 +8203,12 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
                     aiModel === 'claude' ? !anthropicKey.trim() :
                     aiModel === 'glm'    ? !glmKey.trim() :
                     aiModel === 'ark'    ? !arkKey.trim() :
+                    aiModel === 'kimi'   ? !kimiKey.trim() :
                     !customKey.trim() || !customBaseUrl.trim() || !customModel.trim()
                   )}
                     style={{ padding: '8px 16px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, color: C.ink,
                       cursor: aiTestStatus === 'testing' ? 'wait' : 'pointer',
-                      opacity: (aiTestStatus === 'testing' || (aiModel === 'claude' ? !anthropicKey.trim() : aiModel === 'glm' ? !glmKey.trim() : aiModel === 'ark' ? !arkKey.trim() : !customKey.trim() || !customBaseUrl.trim() || !customModel.trim())) ? 0.45 : 1 }}>
+                      opacity: (aiTestStatus === 'testing' || (aiModel === 'claude' ? !anthropicKey.trim() : aiModel === 'glm' ? !glmKey.trim() : aiModel === 'ark' ? !arkKey.trim() : aiModel === 'kimi' ? !kimiKey.trim() : !customKey.trim() || !customBaseUrl.trim() || !customModel.trim())) ? 0.45 : 1 }}>
                     {aiTestStatus === 'testing' ? '测试中…' : '测试请求'}
                   </button>
                   {savedAI && <span style={{ fontSize: 12, color: C.success }}>✓ 已保存</span>}
@@ -8067,7 +8404,7 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack }) {
 }
 
 /* ═══════════════════════════ SETTINGS DROPDOWN ═════════════════════════════ */
-function SettingsDropdown({ onClose, onNavigateToSettings }) {
+function SettingsDropdown({ onClose, onNavigateToSettings, themeMode, onToggleThemeMode }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -8103,6 +8440,16 @@ function SettingsDropdown({ onClose, onNavigateToSettings }) {
 
       {/* Menu items */}
       <div style={{padding:4}}>
+        {onToggleThemeMode && (
+          <button style={menuItemStyle}
+            onMouseEnter={e=>e.currentTarget.style.background=C.accentLight}
+            onMouseLeave={e=>e.currentTarget.style.background="none"}
+            onClick={() => { onToggleThemeMode(); onClose(); }}>
+            <span>{themeMode === "dark" ? "☀️" : "🌙"}</span>
+            主题：{themeMode === "dark" ? "浅色" : "深色"}
+          </button>
+        )}
+        {onToggleThemeMode && <div style={{height:1,background:C.border,margin:"4px 8px"}}/>}
         <button style={menuItemStyle}
           onMouseEnter={e=>e.currentTarget.style.background=C.cream}
           onMouseLeave={e=>e.currentTarget.style.background="none"}
@@ -8363,6 +8710,29 @@ function MultiSelectFilter({
   );
 }
 
+function ThemeModeToggle({ mode, onToggle, floating = false }) {
+  return (
+    <button
+      onClick={onToggle}
+      title={mode === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+      style={{
+        padding: floating ? "7px 10px" : "6px 10px",
+        height: floating ? 34 : "auto",
+        background: mode === "dark" ? "#1f2c3d" : C.white,
+        color: mode === "dark" ? C.sbText : C.ink,
+        border: `1px solid ${mode === "dark" ? "#304258" : C.border}`,
+        borderRadius: 6,
+        cursor: "pointer",
+        fontSize: floating ? 13 : 12,
+        fontWeight: 600,
+        boxShadow: floating ? "0 3px 10px rgba(0,0,0,0.18)" : "none",
+      }}
+    >
+      {mode === "dark" ? "☀ 浅色" : "🌙 深色"}
+    </button>
+  );
+}
+
 /* ═══════════════════════════ MAIN APP ═══════════════════════════════════════ */
 export default function PMPlatform() {
   const [cards,setCards]           = useState(INITIAL_CARDS);
@@ -8400,6 +8770,9 @@ export default function PMPlatform() {
   const [showSettings, setShowSettings]                   = useState(false);
   const [showNewDropdown, setShowNewDropdown]             = useState(false);
   const [showImportDrawer, setShowImportDrawer]           = useState(false);
+  const [themeMode, setThemeMode]                         = useState(() => readThemeMode());
+
+  applyThemeModeTokens(themeMode);
 
   const notify=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3000);};
 
@@ -8413,6 +8786,15 @@ export default function PMPlatform() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [showNewDropdown]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_MODE_STORAGE_KEY, themeMode);
+    } catch {}
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-theme-mode", themeMode);
+    }
+  }, [themeMode]);
 
   // ── localStorage persistence ──
   useEffect(() => {
@@ -8943,6 +9325,8 @@ export default function PMPlatform() {
         projectConfig={projectConfig}
         onSave={(cfg) => setProjectConfig(cfg)}
         onBack={() => setCurrentView(null)}
+        themeMode={themeMode}
+        onToggleThemeMode={() => setThemeMode(themeMode === "dark" ? "light" : "dark")}
       />
     );
   }
@@ -8952,12 +9336,14 @@ export default function PMPlatform() {
     return (
       <>
         <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-        {toast&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:toast.ok?C.ink:C.danger,color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:13,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>{toast.msg}</div>}
+        {toast&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:toast.ok?"#0d0e12":C.danger,color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:13,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>{toast.msg}</div>}
         <DesignStudio
           cards={cards}
           focusCardId={studioCardId}
           onBack={()=>setStudioId(null)}
           onUpdateDocs={handleUpdateDocs}
+          themeMode={themeMode}
+          onToggleThemeMode={() => setThemeMode(themeMode === "dark" ? "light" : "dark")}
         />
       </>
     );
@@ -8968,7 +9354,7 @@ export default function PMPlatform() {
     return (
       <>
         <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-        {toast&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:toast.ok?C.ink:C.danger,color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:13,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>{toast.msg}</div>}
+        {toast&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:toast.ok?"#0d0e12":C.danger,color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:13,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>{toast.msg}</div>}
         <DetailPage
           cards={cards}
           focusCardId={detailCardId}
@@ -8979,6 +9365,8 @@ export default function PMPlatform() {
           projectConfig={projectConfig}
           onNavigateToSettings={() => { setDetailId(null); setCurrentView('settings'); }}
           onUpdateRefs={(cardId, refs) => updateCard(cardId, { references: refs })}
+          themeMode={themeMode}
+          onToggleThemeMode={() => setThemeMode(themeMode === "dark" ? "light" : "dark")}
         />
       </>
     );
@@ -8989,14 +9377,14 @@ export default function PMPlatform() {
     <div style={{fontFamily:"'Noto Sans SC',sans-serif",background:C.paper,height:"100vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
       {toast&&(
-        <div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:toast.ok?C.ink:C.danger,color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:13,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.3)",animation:"fadeIn 0.2s ease"}}>
+        <div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:toast.ok?"#0d0e12":C.danger,color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:13,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.3)",animation:"fadeIn 0.2s ease"}}>
           <style>{`@keyframes fadeIn{from{opacity:0;transform:translateX(-50%) translateY(-8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`}</style>
           {toast.msg}
         </div>
       )}
 
       {/* Nav */}
-      <div style={{background:C.ink,padding:"0 24px",display:"flex",alignItems:"center",gap:0,borderBottom:"1px solid #1a1a1a",flexShrink:0,height:56}}>
+      <div style={{background:"#0d0e12",padding:"0 24px",display:"flex",alignItems:"center",gap:0,borderBottom:"1px solid #1a1a1a",flexShrink:0,height:56}}>
         <div style={{display:"flex",alignItems:"center",gap:10,paddingRight:24,borderRight:"1px solid #2a2a2a",marginRight:8}}>
           <div style={{width:28,height:28,background:C.accent,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"#fff"}}>P</div>
           <span style={{color:"#fff",fontWeight:700,fontSize:14}}>PM·AI</span>
@@ -9025,6 +9413,8 @@ export default function PMPlatform() {
               <SettingsDropdown
                 onClose={()=>setShowSettings(false)}
                 onNavigateToSettings={()=>setCurrentView('settings')}
+                themeMode={themeMode}
+                onToggleThemeMode={() => setThemeMode(themeMode === "dark" ? "light" : "dark")}
               />
             )}
           </div>
