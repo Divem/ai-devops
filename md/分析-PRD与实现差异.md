@@ -1,7 +1,7 @@
 # Agentic·DevOps — 功能实现与 PRD 差异分析（更新版）
 
 **分析日期**: 2026-03-10  
-**参考 PRD**: `md/PM_AI_Plagform_PRD.md`  
+**参考 PRD**: `md/产品-PRD需求文档.md`  
 **实现基线**: `pm-ai-app/src/PMPlatform.jsx` + `openspec/specs/`
 
 ---

@@ -54,6 +54,8 @@ class AIClient {
         return new GLMProvider();
       case 'ark':
         return new ArkProvider();
+      case 'kimi':
+        return new KimiProvider();
       case 'custom':
         return new CustomProvider();
       default:
@@ -156,7 +158,7 @@ class ClaudeProvider {
 class GLMProvider {
   constructor() {
     this.apiKey = this._getApiKey();
-    this.apiEndpoint = localStorage.getItem('ai_model_glm_baseurl') || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+    this.apiEndpoint = localStorage.getItem('ai_model_glm_baseurl') || '/api/glm/api/paas/v4/chat/completions';
     this.model = localStorage.getItem('ai_model_glm_modelname') || 'glm-4';
   }
 
@@ -244,7 +246,7 @@ class GLMProvider {
 class ArkProvider {
   constructor() {
     this.apiKey = this._getApiKey();
-    this.apiBaseUrl = localStorage.getItem('ai_model_ark_baseurl') || 'https://ark.cn-beijing.volces.com/api/coding/v3';
+    this.apiBaseUrl = localStorage.getItem('ai_model_ark_baseurl') || '/api/ark/api/coding/v3';
     this.model = localStorage.getItem('ai_model_ark_modelname') || 'ark-code-latest';
   }
 
@@ -316,14 +318,71 @@ class ArkProvider {
 }
 
 /**
+ * Kimi Provider (Anthropic-compatible)
+ */
+class KimiProvider {
+  constructor() {
+    this.apiKey = localStorage.getItem('ai_model_kimi_key') || '';
+    this.apiEndpoint = localStorage.getItem('ai_model_kimi_baseurl') || '/api/kimi/v1/messages';
+    this.model = localStorage.getItem('ai_model_kimi_modelname') || 'kimi-latest';
+  }
+
+  async chat(prompt, maxTokens = 1800) {
+    if (!this.apiKey) {
+      const err = new Error('未配置 Kimi API Key');
+      err.errorType = 'no_api_key';
+      err.errorMessage = '未配置 Kimi API Key';
+      throw err;
+    }
+
+    try {
+      const res = await fetch(this.apiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: this.model,
+          max_tokens: maxTokens,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        const message = data?.error?.message || `HTTP ${res.status}`;
+        console.error('Kimi API Error:', data?.error || data);
+        const err = new Error(message);
+        err.errorType = data?.error?.type || 'api_error';
+        err.errorMessage = message;
+        throw err;
+      }
+
+      return data.content?.map(b => b.text || '').join('') || '';
+    } catch (e) {
+      if (e.errorType) throw e;
+      console.error('Kimi Request Error:', e);
+      const err = new Error(e.message);
+      err.errorType = 'network_error';
+      err.errorMessage = e.message;
+      throw err;
+    }
+  }
+}
+
+/**
  * Custom OpenAI-Compatible Provider
  */
 class CustomProvider {
   constructor() {
     this.apiKey    = localStorage.getItem('ai_model_custom_key')       || '';
-    this.baseUrl   = localStorage.getItem('ai_model_custom_baseurl')   || '';
+    this.baseUrl   = (localStorage.getItem('ai_model_custom_baseurl')   || '').replace(/\/+$/, '');
     this.model     = localStorage.getItem('ai_model_custom_model')     || '';
     this.authStyle = localStorage.getItem('ai_model_custom_authstyle') || 'Bearer';
+    this.format    = localStorage.getItem('ai_model_custom_format')    || 'openai';
   }
 
   async chat(prompt, maxTokens = 1800) {
@@ -333,25 +392,47 @@ class CustomProvider {
       err.errorMessage = err.message;
       throw err;
     }
-    const headers = { 'Content-Type': 'application/json' };
-    if (this.authStyle === 'x-api-key') headers['x-api-key'] = this.apiKey;
-    else headers['Authorization'] = `Bearer ${this.apiKey}`;
 
     try {
-      const res = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ model: this.model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        const message = data?.error?.message || `HTTP ${res.status}`;
-        const err = new Error(message);
-        err.errorType = data?.error?.type || 'api_error';
-        err.errorMessage = message;
-        throw err;
+      let res, data;
+      if (this.format === 'anthropic') {
+        res = await fetch(`${this.baseUrl}/v1/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': this.apiKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({ model: this.model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
+        });
+        data = await res.json();
+        if (!res.ok || data.error) {
+          const message = data?.error?.message || `HTTP ${res.status}`;
+          const err = new Error(message);
+          err.errorType = data?.error?.type || 'api_error';
+          err.errorMessage = message;
+          throw err;
+        }
+        return data.content?.map(b => b.text || '').join('') || '';
+      } else {
+        const headers = { 'Content-Type': 'application/json' };
+        if (this.authStyle === 'x-api-key') headers['x-api-key'] = this.apiKey;
+        else headers['Authorization'] = `Bearer ${this.apiKey}`;
+        res = await fetch(`${this.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ model: this.model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
+        });
+        data = await res.json();
+        if (!res.ok || data.error) {
+          const message = data?.error?.message || `HTTP ${res.status}`;
+          const err = new Error(message);
+          err.errorType = data?.error?.type || 'api_error';
+          err.errorMessage = message;
+          throw err;
+        }
+        return data?.choices?.[0]?.message?.content || '';
       }
-      return data?.choices?.[0]?.message?.content || '';
     } catch (e) {
       if (e.errorType) throw e;
       const err = new Error(e.message);
@@ -370,7 +451,8 @@ const ModelRegistry = {
     claude: { id: 'claude', name: 'Claude (Anthropic)', provider: 'anthropic' },
     glm: { id: 'glm', name: 'GLM-4 (Zhipu)', provider: 'zhipu' },
     ark: { id: 'ark', name: 'ARK Code Latest (Volcengine)', provider: 'volc-ark' },
-    custom: { id: 'custom', name: '自定义模型 (OpenAI Compatible)', provider: 'custom' },
+    kimi: { id: 'kimi', name: 'Kimi (Moonshot)', provider: 'kimi' },
+    custom: { id: 'custom', name: '自定义模型 (OpenAI / Anthropic Compatible)', provider: 'custom' },
   },
 
   /**
@@ -401,9 +483,9 @@ const ModelRegistry = {
 };
 
 // ES 模块导出（用于 Vite 等现代构建工具）
-export { AIClient, ClaudeProvider, GLMProvider, ArkProvider, ModelRegistry };
+export { AIClient, ClaudeProvider, GLMProvider, ArkProvider, KimiProvider, ModelRegistry };
 
 // CommonJS 导出（用于 Node.js 兼容）
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { AIClient, ClaudeProvider, GLMProvider, ArkProvider, ModelRegistry };
+  module.exports = { AIClient, ClaudeProvider, GLMProvider, ArkProvider, KimiProvider, ModelRegistry };
 }

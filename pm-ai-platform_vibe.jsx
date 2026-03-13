@@ -13,6 +13,59 @@ const C = {
   sb:"#1e1e2e", sbHover:"#2a2a3e", sbActive:"#313150", sbText:"#cdd6f4", sbMuted:"#6c7086",
 };
 
+const THEME_MODE_STORAGE_KEY = "pm-ai-theme-mode";
+const AI_DESIGN_THEME = {
+  dark: {
+    topBg: C.ink,
+    topBorder: "#252535",
+    topText: C.sbText,
+    topMuted: "#888",
+    crumbSep: "#444",
+    treeBg: C.sb,
+    treeBorder: "#252535",
+    treeText: C.sbText,
+    treeMuted: C.sbMuted,
+    treeHover: C.sbHover,
+    treeActive: C.sbActive,
+    treeBadgeBg: "#313150",
+    folderOpen: "#f5a97f",
+    folderClosed: "#f9e2af",
+    rightBg: C.white,
+    headerBg: C.cream,
+    editorBg: C.cream,
+    scrollbarThumb: "#3a3a5c",
+  },
+  light: {
+    topBg: "#f5f3ee",
+    topBorder: C.border,
+    topText: C.ink,
+    topMuted: C.muted,
+    crumbSep: "#b7b1a7",
+    treeBg: "#f5f3ee",
+    treeBorder: C.border,
+    treeText: C.ink,
+    treeMuted: C.muted,
+    treeHover: "#e8e6e1",
+    treeActive: C.accentLight,
+    treeBadgeBg: "#ebe7df",
+    folderOpen: C.ink,
+    folderClosed: C.muted,
+    rightBg: C.white,
+    headerBg: "#f7f4ee",
+    editorBg: C.white,
+    scrollbarThumb: "#cfc8bb",
+  },
+};
+
+function readThemeMode() {
+  if (typeof window === "undefined") return "dark";
+  try {
+    return localStorage.getItem(THEME_MODE_STORAGE_KEY) === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
 const COLUMNS = [
   {id:"backlog",   label:"待评审",  color:C.muted,  bg:"#f0ede8"},
   {id:"reviewing", label:"评审中",  color:C.accent, bg:C.accentLight},
@@ -843,7 +896,7 @@ function DetailDrawer({card,onClose,onAIReview,onAIDesign,reviewing,onMoveCard})
 }
 
 /* ═══════════════════════════ DESIGN STUDIO ══════════════════════════════════ */
-function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onSave }) {
+function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onSave, themeMode, onToggleThemeMode }) {
   const [selectedKey, setSelectedKey] = useState(`${focusCardId}:prd`);
   const [generating, setGenerating] = useState(null); // "REQ-001:prd"
   const [editMode, setEditMode] = useState(false);
@@ -890,28 +943,32 @@ function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onSave }) {
   };
 
   const isGenerating = generating === `${selCardId}:${selDocType}`;
+  const theme = themeMode === "light" ? AI_DESIGN_THEME.light : AI_DESIGN_THEME.dark;
 
   // Sidebar tree item
   const TreeItem = ({ label, icon, active, onClick, indent=0, badge, color="#cdd6f4", hasDoc }) => (
     <div onClick={onClick}
-      style={{display:"flex",alignItems:"center",gap:6,padding:`5px ${8+indent*16}px`,cursor:"pointer",background:active?C.sbActive:"transparent",borderRadius:4,margin:"1px 4px",transition:"background 0.15s",userSelect:"none"}}
-      onMouseEnter={e=>{ if(!active) e.currentTarget.style.background=C.sbHover; }}
-      onMouseLeave={e=>{ if(!active) e.currentTarget.style.background="transparent"; }}>
+      tabIndex={0}
+      style={{display:"flex",alignItems:"center",gap:6,padding:`5px ${8+indent*16}px`,cursor:"pointer",background:active?theme.treeActive:"transparent",borderRadius:4,margin:"1px 4px",transition:"background 0.15s",userSelect:"none"}}
+      onMouseEnter={e=>{ if(!active) e.currentTarget.style.background=theme.treeHover; }}
+      onMouseLeave={e=>{ if(!active) e.currentTarget.style.background="transparent"; }}
+      onFocus={e => { e.currentTarget.style.background = theme.treeActive; e.currentTarget.style.boxShadow = `0 0 0 2px ${C.accent}55`; }}
+      onBlur={e => { e.currentTarget.style.boxShadow = "none"; if (!active) e.currentTarget.style.background = "transparent"; }}>
       <span style={{fontSize:12,flexShrink:0}}>{icon}</span>
-      <span style={{fontSize:12,color:active?C.white:C.sbText,flex:1,lineHeight:1.3}}>{label}</span>
+      <span style={{fontSize:12,color:active?theme.topText:theme.treeText,flex:1,lineHeight:1.3}}>{label}</span>
       {hasDoc && <span style={{width:6,height:6,borderRadius:"50%",background:"#a6e3a1",flexShrink:0}}/>}
-      {badge && <span style={{fontSize:9,padding:"1px 5px",background:"#313150",color:C.sbMuted,borderRadius:3,fontFamily:"'DM Mono',monospace"}}>{badge}</span>}
+      {badge && <span style={{fontSize:9,padding:"1px 5px",background:theme.treeBadgeBg,color:theme.treeMuted,borderRadius:3,fontFamily:"'DM Mono',monospace"}}>{badge}</span>}
     </div>
   );
 
   const FolderItem = ({ label, open, onToggle, indent=0, count }) => (
     <div onClick={onToggle}
       style={{display:"flex",alignItems:"center",gap:6,padding:`5px ${8+indent*16}px`,cursor:"pointer",userSelect:"none",margin:"1px 4px",borderRadius:4,transition:"background 0.15s"}}
-      onMouseEnter={e=>e.currentTarget.style.background=C.sbHover}
+      onMouseEnter={e=>e.currentTarget.style.background=theme.treeHover}
       onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-      <span style={{fontSize:10,color:C.sbMuted,transition:"transform 0.15s",display:"inline-block",transform:open?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
-      <span style={{fontSize:12,color:open?"#f5a97f":"#f9e2af",flex:1}}>{open?"📂":"📁"} {label}</span>
-      {count>0&&<span style={{fontSize:9,padding:"1px 5px",background:"#313150",color:C.sbMuted,borderRadius:3}}>{count}</span>}
+      <span style={{fontSize:10,color:theme.treeMuted,transition:"transform 0.15s",display:"inline-block",transform:open?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
+      <span style={{fontSize:12,color:open?theme.folderOpen:theme.folderClosed,flex:1}}>{open?"📂":"📁"} {label}</span>
+      {count>0&&<span style={{fontSize:9,padding:"1px 5px",background:theme.treeBadgeBg,color:theme.treeMuted,borderRadius:3}}>{count}</span>}
     </div>
   );
 
@@ -923,32 +980,35 @@ function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onSave }) {
         .doc-content *{box-sizing:border-box}
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:#3a3a5c;border-radius:3px}
+        ::-webkit-scrollbar-thumb{background:${theme.scrollbarThumb};border-radius:3px}
       `}</style>
 
       {/* Top bar */}
-      <div style={{background:C.ink,borderBottom:"1px solid #252535",padding:"0 0 0 0",display:"flex",alignItems:"center",gap:0,flexShrink:0,height:44}}>
-        <button onClick={onBack} style={{padding:"0 18px",height:"100%",background:"none",border:"none",borderRight:"1px solid #252535",cursor:"pointer",color:"#888",fontSize:12,display:"flex",alignItems:"center",gap:7,transition:"color 0.15s"}}
-          onMouseEnter={e=>e.currentTarget.style.color="#fff"} onMouseLeave={e=>e.currentTarget.style.color="#888"}>
+      <div style={{background:theme.topBg,borderBottom:`1px solid ${theme.topBorder}`,padding:"0 0 0 0",display:"flex",alignItems:"center",gap:0,flexShrink:0,height:44}}>
+        <button onClick={onBack} style={{padding:"0 18px",height:"100%",background:"none",border:"none",borderRight:`1px solid ${theme.topBorder}`,cursor:"pointer",color:theme.topMuted,fontSize:12,display:"flex",alignItems:"center",gap:7,transition:"color 0.15s"}}
+          onMouseEnter={e=>e.currentTarget.style.color=theme.topText} onMouseLeave={e=>e.currentTarget.style.color=theme.topMuted}>
           ← 返回看板
         </button>
         <div style={{padding:"0 18px",display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:12,color:"#888"}}>设计工作台</span>
-          <span style={{color:"#444"}}>/</span>
-          {selCard && <span style={{fontSize:12,color:C.sbText,fontWeight:500}}>{selCard.id}</span>}
-          {selCard && <span style={{color:"#444"}}>/</span>}
+          <span style={{fontSize:12,color:theme.topMuted}}>设计工作台</span>
+          <span style={{color:theme.crumbSep}}>/</span>
+          {selCard && <span style={{fontSize:12,color:theme.topText,fontWeight:500}}>{selCard.id}</span>}
+          {selCard && <span style={{color:theme.crumbSep}}>/</span>}
           {selDocMeta && <span style={{fontSize:12,color:selDocMeta.color,fontWeight:600}}>{selDocMeta.label}</span>}
         </div>
         <div style={{marginLeft:"auto",padding:"0 16px",display:"flex",gap:8,alignItems:"center"}}>
+          <button onClick={onToggleThemeMode} style={{padding:"5px 10px",background:themeMode === "light" ? C.white : "#313150",border:`1px solid ${themeMode === "light" ? C.border : "#3d3d60"}`,borderRadius:5,cursor:"pointer",fontSize:12,color:themeMode === "light" ? C.ink : C.sbText,fontWeight:600}}>
+            {themeMode === "light" ? "🌙 深色" : "☀ 浅色"}
+          </button>
           {selContent && !editMode && (
             <button onClick={enterEdit}
-              style={{padding:"5px 14px",background:"#313150",border:"1px solid #3d3d60",borderRadius:5,cursor:"pointer",fontSize:12,color:C.sbText,display:"flex",alignItems:"center",gap:6}}>
+              style={{padding:"5px 14px",background:themeMode === "light" ? C.white : "#313150",border:`1px solid ${themeMode === "light" ? C.border : "#3d3d60"}`,borderRadius:5,cursor:"pointer",fontSize:12,color:themeMode === "light" ? C.ink : C.sbText,display:"flex",alignItems:"center",gap:6}}>
               ✎ 编辑
             </button>
           )}
           {editMode && (
             <>
-              <button onClick={()=>setEditMode(false)} style={{padding:"5px 14px",background:"transparent",border:"1px solid #3d3d60",borderRadius:5,cursor:"pointer",fontSize:12,color:"#888"}}>取消</button>
+              <button onClick={()=>setEditMode(false)} style={{padding:"5px 14px",background:"transparent",border:`1px solid ${themeMode === "light" ? C.border : "#3d3d60"}`,borderRadius:5,cursor:"pointer",fontSize:12,color:theme.topMuted}}>取消</button>
               <button onClick={handleSaveEdit} style={{padding:"5px 14px",background:C.accent,border:"none",borderRadius:5,cursor:"pointer",fontSize:12,color:"#fff",fontWeight:600}}>保存</button>
             </>
           )}
@@ -958,8 +1018,8 @@ function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onSave }) {
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
 
         {/* ── Left sidebar tree ── */}
-        <div style={{width:240,background:C.sb,borderRight:"1px solid #252535",overflowY:"auto",flexShrink:0,padding:"12px 0"}}>
-          <div style={{padding:"0 12px 8px",fontSize:10,color:C.sbMuted,letterSpacing:2,fontFamily:"'DM Mono',monospace",textTransform:"uppercase"}}>
+        <div style={{width:240,background:theme.treeBg,borderRight:`1px solid ${theme.treeBorder}`,overflowY:"auto",flexShrink:0,padding:"12px 0"}}>
+          <div style={{padding:"0 12px 8px",fontSize:10,color:theme.treeMuted,letterSpacing:2,fontFamily:"'DM Mono',monospace",textTransform:"uppercase"}}>
             需求文档树
           </div>
           {cards.map(card => {
@@ -982,7 +1042,7 @@ function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onSave }) {
                   <div>
                     {/* Card title hint */}
                     <div style={{padding:"2px 8px 4px 24px"}}>
-                      <div style={{fontSize:11,color:C.sbMuted,lineHeight:1.3,paddingLeft:8,borderLeft:`2px solid #313150`}}>
+                      <div style={{fontSize:11,color:theme.treeMuted,lineHeight:1.3,paddingLeft:8,borderLeft:`2px solid ${theme.treeBadgeBg}`}}>
                         {card.title.length>28?card.title.slice(0,28)+"…":card.title}
                       </div>
                     </div>
@@ -1032,10 +1092,10 @@ function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onSave }) {
         </div>
 
         {/* ── Right content panel ── */}
-        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:"#fff"}}>
+        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:theme.rightBg}}>
 
           {/* Doc header tab bar */}
-          <div style={{borderBottom:`1px solid ${C.border}`,padding:"0 28px",display:"flex",alignItems:"center",gap:0,background:C.cream,flexShrink:0,height:40}}>
+          <div style={{borderBottom:`1px solid ${C.border}`,padding:"0 28px",display:"flex",alignItems:"center",gap:0,background:theme.headerBg,flexShrink:0,height:40}}>
             {selDocMeta && (
               <div style={{display:"flex",alignItems:"center",gap:8,padding:"0 16px 0 0",borderRight:`1px solid ${C.border}`,height:"100%"}}>
                 <span style={{fontSize:14}}>{selDocMeta.icon}</span>
@@ -1058,7 +1118,7 @@ function DesignStudio({ cards, focusCardId, onBack, onUpdateDocs, onSave }) {
                 <textarea
                   value={editText}
                   onChange={e=>setEditText(e.target.value)}
-                  style={{width:"100%",height:"calc(100vh - 180px)",padding:"16px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,color:C.ink,background:C.cream,outline:"none",resize:"none",lineHeight:1.75,fontFamily:"'DM Mono',monospace",boxSizing:"border-box"}}
+                  style={{width:"100%",height:"calc(100vh - 180px)",padding:"16px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,color:C.ink,background:theme.editorBg,outline:"none",resize:"none",lineHeight:1.75,fontFamily:"'DM Mono',monospace",boxSizing:"border-box"}}
                   onFocus={e=>{e.target.style.borderColor=C.accent;e.target.style.boxShadow=`0 0 0 3px ${C.accentLight}`}}
                   onBlur={e=>{e.target.style.borderColor=C.border;e.target.style.boxShadow="none"}}
                 />
@@ -1165,6 +1225,23 @@ export default function PMPlatform() {
   const [dragCard,setDragCard]      = useState(null);
   const [activeTab,setActiveTab]    = useState("kanban");
   const [toast,setToast]            = useState(null);
+  const [themeMode, setThemeMode]   = useState(() => readThemeMode());
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_MODE_STORAGE_KEY, themeMode);
+    } catch {}
+  }, [themeMode]);
+
+  useEffect(() => {
+    const handleStorage = (event) => {
+      if (event.key === THEME_MODE_STORAGE_KEY) {
+        setThemeMode(event.newValue === "light" ? "light" : "dark");
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   const notify=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3000);};
 
@@ -1224,6 +1301,8 @@ export default function PMPlatform() {
           focusCardId={studioCardId}
           onBack={()=>setStudioId(null)}
           onUpdateDocs={handleUpdateDocs}
+          themeMode={themeMode}
+          onToggleThemeMode={() => setThemeMode(themeMode === "light" ? "dark" : "light")}
         />
       </>
     );

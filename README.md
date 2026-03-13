@@ -138,9 +138,9 @@ skillname/
 
 ## 文档索引
 
-- 新用户手册：`md/NEW_USER_DEMO_MANUAL.md`
-- 技术架构说明书：`md/TECHNICAL_ARCHITECTURE.md`
-- 产品 PRD 摘录来源：`md/PM_AI_Plagform_PRD.md`
+- 新用户手册：`md/手册-新用户演示指南.md`
+- 技术架构说明书：`md/技术-架构说明书.md`
+- 产品 PRD 摘录来源：`md/产品-PRD需求文档.md`
 
 ## 许可证
 
