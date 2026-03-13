@@ -7408,9 +7408,7 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
   });
   const availableApps = Array.from(availableAppMap.values());
 
-  const selectedAppNames = availableApps
-    .filter(app => projectAppIds.includes(app.id))
-    .map(app => app.name);
+  const selectedApps = availableApps.filter(app => projectAppIds.includes(app.id));
 
   useEffect(() => {
     const normalized = normalizeGitConfig(projectConfig.git);
@@ -7485,6 +7483,13 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
   const inputStyle   = { width: '100%', padding: '8px 12px', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.cream, color: C.ink, outline: 'none', boxSizing: 'border-box', fontFamily: "'DM Mono',monospace" };
   const errStyle     = { fontSize: 11, color: C.danger, marginTop: 4 };
   const multiBoxStyle = { border: `1px solid ${C.border}`, borderRadius: 6, background: C.cream, padding: 8, display: 'grid', gap: 6, marginBottom: 10 };
+  const associationShellStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 18, alignItems: 'start' };
+  const associationPanelStyle = { border: `1px solid ${C.border}`, borderRadius: 10, background: C.white, padding: 18, boxShadow: '0 1px 0 rgba(13,14,18,0.03)' };
+  const associationSectionTitleStyle = { fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, marginBottom: 6, fontFamily: "'DM Mono',monospace" };
+  const associationHintStyle = { fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 1.6 };
+  const summaryListStyle = { display: 'flex', flexWrap: 'wrap', gap: 8 };
+  const summaryChipStyle = { display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: 999, background: C.accentLight, color: C.accent, fontSize: 12, fontWeight: 600 };
+  const summaryEmptyStyle = { fontSize: 12, color: C.muted, lineHeight: 1.6 };
 
   const handleTestAI = async () => {
     setAiTestStatus('testing');
@@ -7796,72 +7801,122 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
               <h2 style={{ fontWeight: 700, fontSize: 18, color: C.ink, marginBottom: 4 }}>项目配置</h2>
               <p style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>先建立项目关联上下文，再进行仓库和模型配置。</p>
               <div style={sectionStyle}>
-                <label style={labelStyle}>关联空间</label>
-                <div style={multiBoxStyle}>
-                  {PROJECT_ASSOCIATION_OPTIONS.map(space => (
-                    <label key={space.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.ink, cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={projectSpaceIds.includes(space.id)}
-                        onChange={e => handleToggleSpace(space.id, e.target.checked)}
-                      />
-                      <span>{space.name}</span>
-                    </label>
-                  ))}
-                </div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>可直接勾选多个空间。</div>
+                <div style={associationShellStyle}>
+                  <div style={associationPanelStyle}>
+                    <div style={associationSectionTitleStyle}>关联选择</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 8 }}>按空间到应用逐级建立项目上下文</div>
+                    <div style={associationHintStyle}>先选择空间，再筛选子系统，最后确定关联项目（应用）。左侧负责选择，右侧实时展示当前结果，方便你边选边确认。</div>
 
-                <label style={labelStyle}>关联子系统</label>
-                <div style={{ ...multiBoxStyle, opacity: projectSpaceIds.length ? 1 : 0.6 }}>
-                  {!availableSubsystems.length && <div style={{ fontSize: 12, color: C.muted }}>暂无可选子系统</div>}
-                  {availableSubsystems.map(subsystem => (
-                    <label key={subsystem.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.ink, cursor: projectSpaceIds.length ? 'pointer' : 'not-allowed' }}>
-                      <input
-                        type="checkbox"
-                        checked={projectSubsystemIds.includes(subsystem.id)}
-                        onChange={e => handleToggleSubsystem(subsystem.id, e.target.checked)}
-                        disabled={!projectSpaceIds.length}
-                      />
-                      <span>{subsystem.name}</span>
-                    </label>
-                  ))}
-                </div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>请先选择至少一个空间后再选择子系统</div>
+                    <label style={labelStyle}>关联空间</label>
+                    <div style={multiBoxStyle}>
+                      {PROJECT_ASSOCIATION_OPTIONS.map(space => (
+                        <label key={space.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.ink, cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={projectSpaceIds.includes(space.id)}
+                            onChange={e => handleToggleSpace(space.id, e.target.checked)}
+                          />
+                          <span>{space.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>第 1 步：可直接勾选多个空间，系统会自动合并可选子系统。</div>
 
-                <label style={labelStyle}>关联项目（应用）</label>
-                <div style={{ ...multiBoxStyle, opacity: projectSubsystemIds.length ? 1 : 0.6 }}>
-                  {!availableApps.length && <div style={{ fontSize: 12, color: C.muted }}>暂无可选应用</div>}
-                  {availableApps.map(app => (
-                    <label key={app.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.ink, cursor: projectSubsystemIds.length ? 'pointer' : 'not-allowed' }}>
-                      <input
-                        type="checkbox"
-                        checked={projectAppIds.includes(app.id)}
-                        onChange={e => handleToggleApp(app.id, e.target.checked)}
-                        disabled={!projectSubsystemIds.length}
-                      />
-                      <span>{app.name}</span>
-                    </label>
-                  ))}
-                </div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>请先选择至少一个子系统后再选择应用</div>
+                    <label style={labelStyle}>关联子系统</label>
+                    <div style={{ ...multiBoxStyle, opacity: projectSpaceIds.length ? 1 : 0.6 }}>
+                      {!availableSubsystems.length && <div style={{ fontSize: 12, color: C.muted }}>请先选择至少一个空间，随后这里会展示对应子系统。</div>}
+                      {availableSubsystems.map(subsystem => (
+                        <label key={subsystem.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.ink, cursor: projectSpaceIds.length ? 'pointer' : 'not-allowed' }}>
+                          <input
+                            type="checkbox"
+                            checked={projectSubsystemIds.includes(subsystem.id)}
+                            onChange={e => handleToggleSubsystem(subsystem.id, e.target.checked)}
+                            disabled={!projectSpaceIds.length}
+                          />
+                          <span>{subsystem.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>第 2 步：子系统基于已选空间联动显示；取消空间后，无效子系统会自动清理。</div>
 
-                <div style={{ fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 1.6 }}>
-                  当前已选：
-                  <span style={{ color: C.ink, fontWeight: 500 }}>
-                    {(selectedSpaces.map(space => space.name).join('、') || '未选择空间')}
-                    {' / '}
-                    {(selectedSubsystems.map(subsystem => subsystem.name).join('、') || '未选择子系统')}
-                    {' / '}
-                    {(selectedAppNames.join('、') || '未选择应用')}
-                  </span>
-                </div>
+                    <label style={labelStyle}>关联项目（应用）</label>
+                    <div style={{ ...multiBoxStyle, opacity: projectSubsystemIds.length ? 1 : 0.6 }}>
+                      {!availableApps.length && <div style={{ fontSize: 12, color: C.muted }}>请先选择至少一个子系统，随后这里会展示对应应用。</div>}
+                      {availableApps.map(app => (
+                        <label key={app.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.ink, cursor: projectSubsystemIds.length ? 'pointer' : 'not-allowed' }}>
+                          <input
+                            type="checkbox"
+                            checked={projectAppIds.includes(app.id)}
+                            onChange={e => handleToggleApp(app.id, e.target.checked)}
+                            disabled={!projectSubsystemIds.length}
+                          />
+                          <span>{app.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>第 3 步：应用列表基于已选子系统联动显示；取消子系统后，无效应用会自动清理。</div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button onClick={handleSaveProject}
-                    style={{ padding: '8px 20px', background: C.accent, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                    保存项目配置
-                  </button>
-                  {savedProject && <span style={{ fontSize: 12, color: C.success }}>✓ 已保存</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <button onClick={handleSaveProject}
+                        style={{ padding: '8px 20px', background: C.accent, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                        保存项目配置
+                      </button>
+                      {savedProject && <span style={{ fontSize: 12, color: C.success }}>✓ 已保存</span>}
+                    </div>
+                  </div>
+
+                  <div style={{ ...associationPanelStyle, background: C.cream }}>
+                    <div style={associationSectionTitleStyle}>当前已选</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 8 }}>结果会随着左侧选择实时同步</div>
+                    <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>你可以在这里快速确认最终关联范围。若上层选项被取消，系统会同步清理右侧已失效的下层结果。</div>
+
+                    <div style={{ display: 'grid', gap: 12, marginBottom: 18 }}>
+                      <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.white, padding: 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>空间</span>
+                          <span style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace" }}>{selectedSpaces.length} selected</span>
+                        </div>
+                        {selectedSpaces.length ? (
+                          <div style={summaryListStyle}>
+                            {selectedSpaces.map(space => <span key={space.id} style={summaryChipStyle}>{space.name}</span>)}
+                          </div>
+                        ) : <div style={summaryEmptyStyle}>未选择空间</div>}
+                      </div>
+
+                      <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.white, padding: 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>子系统</span>
+                          <span style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace" }}>{selectedSubsystems.length} selected</span>
+                        </div>
+                        {selectedSubsystems.length ? (
+                          <div style={summaryListStyle}>
+                            {selectedSubsystems.map(subsystem => <span key={subsystem.id} style={summaryChipStyle}>{subsystem.name}</span>)}
+                          </div>
+                        ) : <div style={summaryEmptyStyle}>未选择子系统</div>}
+                      </div>
+
+                      <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.white, padding: 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>项目（应用）</span>
+                          <span style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace" }}>{selectedApps.length} selected</span>
+                        </div>
+                        {selectedApps.length ? (
+                          <div style={summaryListStyle}>
+                            {selectedApps.map(app => <span key={app.id} style={summaryChipStyle}>{app.name}</span>)}
+                          </div>
+                        ) : <div style={summaryEmptyStyle}>未选择应用</div>}
+                      </div>
+                    </div>
+
+                    <div style={{ borderRadius: 10, background: '#f7f3ec', border: `1px dashed ${C.border}`, padding: 14 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 8 }}>配置规则</div>
+                      <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.7 }}>
+                        1. 先选空间，再选子系统，最后选应用。<br/>
+                        2. 上层范围变更后，下层无效项会自动移除。<br/>
+                        3. 点击“保存项目配置”后，刷新页面仍会恢复当前结果。
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
           </div>
@@ -8033,17 +8088,26 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
                     <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>Keys 保存在浏览器本地，不上传服务器。</div>
 
                     <label style={labelStyle}>API Base URL</label>
-                    <input value={anthropicBaseUrl} onChange={e => setAnthropicBaseUrl(e.target.value)}
-                      placeholder="/api/anthropic/v1/messages" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>留空使用默认端点，可填写代理地址。</div>
-                    <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
-                      {anthropicBaseUrl ? `实际请求地址: 自定义（${anthropicBaseUrl}）` : '实际请求地址: https://api.anthropic.com/v1/messages'}
-                    </div>
+                    <select value={['', '/api/anthropic/v1/messages'].includes(anthropicBaseUrl) ? anthropicBaseUrl : '__custom__'}
+                      onChange={e => {
+                        if (e.target.value === '__custom__') {
+                          if (['', '/api/anthropic/v1/messages'].includes(anthropicBaseUrl)) setAnthropicBaseUrl('https://');
+                        } else { setAnthropicBaseUrl(e.target.value); }
+                      }}
+                      style={{ ...inputStyle, marginBottom: !['', '/api/anthropic/v1/messages'].includes(anthropicBaseUrl) ? 4 : 12, fontFamily: 'inherit', cursor: 'pointer' }}>
+                      <option value="">Claude 默认: https://api.anthropic.com/v1/messages</option>
+                      <option value="/api/anthropic/v1/messages">本地代理: /api/anthropic/v1/messages</option>
+                      <option value="__custom__">自定义...</option>
+                    </select>
+                    {!['', '/api/anthropic/v1/messages'].includes(anthropicBaseUrl) && (
+                      <input value={anthropicBaseUrl} onChange={e => setAnthropicBaseUrl(e.target.value)}
+                        placeholder="https://your-proxy.com/v1/messages" style={{ ...inputStyle, marginBottom: 12 }}/>
+                    )}
 
                     <label style={labelStyle}>Model Name</label>
                     <input value={anthropicModel} onChange={e => setAnthropicModel(e.target.value)}
-                      placeholder="claude-sonnet-4-20250514" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: claude-sonnet-4-20250514, claude-haiku-4-5-20251001</div>
+                      placeholder="claude-sonnet-4-6" style={{ ...inputStyle, marginBottom: 4 }}/>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: claude-sonnet-4-6, claude-opus-4-6, claude-haiku-4-5-20251001</div>
                   </>
                 )}
 
@@ -8063,15 +8127,25 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
                       申请地址：<a href="https://open.bigmodel.cn/usercenter/apikeys" target="_blank" rel="noreferrer" style={{ color: C.accent }}>open.bigmodel.cn</a>
                     </div>
                     <label style={labelStyle}>API Base URL</label>
-                    <input value={glmBaseUrl} onChange={e => setGlmBaseUrl(e.target.value)}
-                      placeholder="https://open.bigmodel.cn/api/paas/v4/chat/completions" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
-                      {glmBaseUrl ? `实际请求地址: 自定义（${glmBaseUrl}）` : '实际请求地址: https://open.bigmodel.cn/api/paas/v4/chat/completions'}
-                    </div>
+                    <select value={[''].includes(glmBaseUrl) ? glmBaseUrl : '__custom__'}
+                      onChange={e => {
+                        if (e.target.value === '__custom__') {
+                          if (glmBaseUrl === '') setGlmBaseUrl('https://');
+                        } else { setGlmBaseUrl(e.target.value); }
+                      }}
+                      style={{ ...inputStyle, marginBottom: glmBaseUrl !== '' ? 4 : 12, fontFamily: 'inherit', cursor: 'pointer' }}>
+                      <option value="">GLM 默认: https://open.bigmodel.cn/api/paas/v4/chat/completions</option>
+                      <option value="__custom__">自定义...</option>
+                    </select>
+                    {glmBaseUrl !== '' && (
+                      <input value={glmBaseUrl} onChange={e => setGlmBaseUrl(e.target.value)}
+                        placeholder="https://your-proxy.com/chat/completions" style={{ ...inputStyle, marginBottom: 12 }}/>
+                    )}
+
                     <label style={labelStyle}>Model Name</label>
                     <input value={glmModel} onChange={e => setGlmModel(e.target.value)}
-                      placeholder="glm-4" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: glm-4, glm-4-flash, glm-4-long</div>
+                      placeholder="glm-4-plus" style={{ ...inputStyle, marginBottom: 4 }}/>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: glm-4-plus, glm-4-long, glm-4-flash, glm-4.7-flash</div>
                   </>
                 )}
 
@@ -8091,15 +8165,26 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
                       申请地址：<a href="https://ark.cn-beijing.volces.com" target="_blank" rel="noreferrer" style={{ color: C.accent }}>ark.cn-beijing.volces.com</a>
                     </div>
                     <label style={labelStyle}>API Base URL</label>
-                    <input value={arkBaseUrl} onChange={e => setArkBaseUrl(e.target.value)}
-                      placeholder="https://ark.cn-beijing.volces.com/api/coding/v3" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
-                      {arkBaseUrl ? `实际请求地址: 自定义（${arkBaseUrl}）` : '实际请求地址: https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions'}
-                    </div>
+                    <select value={['', '/api/ark/v3/chat/completions'].includes(arkBaseUrl) ? arkBaseUrl : '__custom__'}
+                      onChange={e => {
+                        if (e.target.value === '__custom__') {
+                          if (['', '/api/ark/v3/chat/completions'].includes(arkBaseUrl)) setArkBaseUrl('https://');
+                        } else { setArkBaseUrl(e.target.value); }
+                      }}
+                      style={{ ...inputStyle, marginBottom: !['', '/api/ark/v3/chat/completions'].includes(arkBaseUrl) ? 4 : 12, fontFamily: 'inherit', cursor: 'pointer' }}>
+                      <option value="">ARK 默认: https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions</option>
+                      <option value="/api/ark/v3/chat/completions">本地代理: /api/ark/v3/chat/completions</option>
+                      <option value="__custom__">自定义...</option>
+                    </select>
+                    {!['', '/api/ark/v3/chat/completions'].includes(arkBaseUrl) && (
+                      <input value={arkBaseUrl} onChange={e => setArkBaseUrl(e.target.value)}
+                        placeholder="https://your-proxy.com/v3/chat/completions" style={{ ...inputStyle, marginBottom: 12 }}/>
+                    )}
+
                     <label style={labelStyle}>Model Name</label>
                     <input value={arkModel} onChange={e => setArkModel(e.target.value)}
                       placeholder="ark-code-latest" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: ark-code-latest</div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: ark-code-latest, doubao-seed-2.0-code, doubao-seed-2.0-pro, doubao-seed-2.0-lite</div>
                   </>
                 )}
 
@@ -8119,15 +8204,26 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
                       在 Kimi 会员页面生成 API Key
                     </div>
                     <label style={labelStyle}>API Base URL</label>
-                    <input value={kimiBaseUrl} onChange={e => setKimiBaseUrl(e.target.value)}
-                      placeholder="/api/kimi/v1/messages（默认走本地代理）" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
-                      {kimiBaseUrl ? `实际请求地址: 自定义（${kimiBaseUrl}）` : '实际请求地址: https://api.kimi.com/coding/v1/messages'}
-                    </div>
+                    <select value={['', '/api/kimi/v1/messages'].includes(kimiBaseUrl) ? kimiBaseUrl : '__custom__'}
+                      onChange={e => {
+                        if (e.target.value === '__custom__') {
+                          if (['', '/api/kimi/v1/messages'].includes(kimiBaseUrl)) setKimiBaseUrl('https://');
+                        } else { setKimiBaseUrl(e.target.value); }
+                      }}
+                      style={{ ...inputStyle, marginBottom: !['', '/api/kimi/v1/messages'].includes(kimiBaseUrl) ? 4 : 12, fontFamily: 'inherit', cursor: 'pointer' }}>
+                      <option value="">Kimi 默认: https://api.kimi.com/coding/v1/messages</option>
+                      <option value="/api/kimi/v1/messages">本地代理: /api/kimi/v1/messages</option>
+                      <option value="__custom__">自定义...</option>
+                    </select>
+                    {!['', '/api/kimi/v1/messages'].includes(kimiBaseUrl) && (
+                      <input value={kimiBaseUrl} onChange={e => setKimiBaseUrl(e.target.value)}
+                        placeholder="https://your-proxy.com/v1/messages" style={{ ...inputStyle, marginBottom: 12 }}/>
+                    )}
+
                     <label style={labelStyle}>Model Name</label>
                     <input value={kimiModel} onChange={e => setKimiModel(e.target.value)}
-                      placeholder="kimi-latest" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: kimi-k2.5, moonshot-v1-8k, moonshot-v1-32k, moonshot-v1-128k</div>
+                      placeholder="kimi-k2.5" style={{ ...inputStyle, marginBottom: 4 }}/>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: kimi-k2.5, kimi-k2-instruct</div>
                   </>
                 )}
 
@@ -8139,11 +8235,42 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
                       placeholder="My Custom Model" style={{ ...inputStyle, marginBottom: 12 }}/>
 
                     <label style={labelStyle}>Base URL</label>
-                    <input value={customBaseUrl} onChange={e => setCustomBaseUrl(e.target.value)}
-                      placeholder="https://api.openai.com" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>
-                      {customFormat === 'anthropic' ? '不含路径，系统自动追加 /v1/messages' : '不含路径，系统自动追加 /chat/completions'}
-                    </div>
+                    {(() => {
+                      const presets = customFormat === 'anthropic'
+                        ? ['', 'https://api.anthropic.com', '/api/anthropic']
+                        : ['', 'https://api.openai.com', 'https://api.deepseek.com', 'https://api.groq.com/openai', 'https://api.together.xyz'];
+                      const isCustom = !presets.includes(customBaseUrl);
+                      const suffix = customFormat === 'anthropic' ? '/v1/messages' : '/chat/completions';
+                      return <>
+                        <select value={isCustom ? '__custom__' : customBaseUrl}
+                          onChange={e => {
+                            if (e.target.value === '__custom__') {
+                              if (!isCustom) setCustomBaseUrl('https://');
+                            } else { setCustomBaseUrl(e.target.value); }
+                          }}
+                          style={{ ...inputStyle, marginBottom: 4, fontFamily: 'inherit', cursor: 'pointer' }}>
+                          <option value="">请选择...</option>
+                          {customFormat !== 'anthropic' && <>
+                            <option value="https://api.openai.com">OpenAI: https://api.openai.com{suffix}</option>
+                            <option value="https://api.deepseek.com">DeepSeek: https://api.deepseek.com{suffix}</option>
+                            <option value="https://api.groq.com/openai">Groq: https://api.groq.com/openai{suffix}</option>
+                            <option value="https://api.together.xyz">Together AI: https://api.together.xyz{suffix}</option>
+                          </>}
+                          {customFormat === 'anthropic' && <>
+                            <option value="https://api.anthropic.com">Anthropic: https://api.anthropic.com{suffix}</option>
+                            <option value="/api/anthropic">本地代理: /api/anthropic{suffix}</option>
+                          </>}
+                          <option value="__custom__">自定义...</option>
+                        </select>
+                        {isCustom && (
+                          <input value={customBaseUrl} onChange={e => setCustomBaseUrl(e.target.value)}
+                            placeholder="https://your-api.com" style={{ ...inputStyle, marginBottom: 4 }}/>
+                        )}
+                        {isCustom && <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>
+                          不含路径，系统自动追加 {suffix}
+                        </div>}
+                      </>;
+                    })()}
                     {customBaseUrl && (
                       <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
                         {customFormat === 'anthropic' ? `实际请求地址: ${customBaseUrl}/v1/messages` : `实际请求地址: ${customBaseUrl}/chat/completions`}
@@ -8168,8 +8295,12 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
                     <label style={labelStyle}>API 格式</label>
                     <select value={customFormat} onChange={e => {
                       const fmt = e.target.value;
+                      const oldPresets = customFormat === 'anthropic'
+                        ? ['https://api.anthropic.com', '/api/anthropic']
+                        : ['https://api.openai.com', 'https://api.deepseek.com', 'https://api.groq.com/openai', 'https://api.together.xyz'];
                       setCustomFormat(fmt);
                       if (fmt === 'anthropic') setCustomAuthStyle('x-api-key');
+                      if (oldPresets.includes(customBaseUrl)) setCustomBaseUrl('');
                     }}
                       style={{ ...inputStyle, marginBottom: 12, fontFamily: 'inherit', cursor: 'pointer' }}>
                       <option value="openai">OpenAI Compatible</option>
