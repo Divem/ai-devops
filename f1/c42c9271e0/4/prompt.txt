@@ -1,0 +1,1 @@
+给我将 openclaw 的默认模型切换为 kimi
