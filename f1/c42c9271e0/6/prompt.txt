@@ -1,0 +1,5 @@
+/opsx:archive skill-editor-page
+
+---
+
+/opsx:archive skill-tab-navigation

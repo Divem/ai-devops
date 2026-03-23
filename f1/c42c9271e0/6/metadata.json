@@ -1,0 +1,46 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "f1c42c9271e0",
+  "session_id": "d1b14b7c-3250-47de-80ea-16894f0fab2c",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-23T14:07:14.197427Z",
+  "branch": "refactor/pruned-version",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "openspec/FEATURES.md",
+    "openspec/changes/archive/2026-03-23-skill-editor-page/.openspec.yaml",
+    "openspec/changes/archive/2026-03-23-skill-editor-page/design.md",
+    "openspec/changes/archive/2026-03-23-skill-editor-page/proposal.md",
+    "openspec/changes/archive/2026-03-23-skill-editor-page/specs/skill-inline-editor/spec.md",
+    "openspec/changes/archive/2026-03-23-skill-editor-page/tasks.md",
+    "openspec/changes/archive/2026-03-23-skill-tab-navigation/.openspec.yaml",
+    "openspec/changes/archive/2026-03-23-skill-tab-navigation/design.md",
+    "openspec/changes/archive/2026-03-23-skill-tab-navigation/proposal.md",
+    "openspec/changes/archive/2026-03-23-skill-tab-navigation/specs/skill-tab-integration/spec.md",
+    "openspec/changes/archive/2026-03-23-skill-tab-navigation/tasks.md",
+    "openspec/specs/skill-inline-editor/spec.md",
+    "openspec/specs/skill-tab-integration/spec.md",
+    "pm-ai-app/src/PMPlatform.jsx"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "464954fa78d6",
+  "token_usage": {
+    "input_tokens": 14809,
+    "cache_creation_tokens": 75909,
+    "cache_read_tokens": 428349,
+    "output_tokens": 1995,
+    "api_call_count": 18
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-23T14:07:14.18391Z",
+    "agent_lines": 1424,
+    "human_added": 192,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1616,
+    "agent_percentage": 88.11881188118812
+  }
+}

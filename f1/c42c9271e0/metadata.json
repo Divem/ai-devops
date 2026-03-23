@@ -3,7 +3,7 @@
   "checkpoint_id": "f1c42c9271e0",
   "strategy": "manual-commit",
   "branch": "refactor/pruned-version",
-  "checkpoints_count": 16,
+  "checkpoints_count": 18,
   "files_touched": [
     "openspec/FEATURES.md",
     "openspec/changes/archive/2026-03-23-skill-editor-page/.openspec.yaml",
@@ -63,13 +63,19 @@
       "transcript": "/f1/c42c9271e0/5/full.jsonl",
       "content_hash": "/f1/c42c9271e0/5/content_hash.txt",
       "prompt": "/f1/c42c9271e0/5/prompt.txt"
+    },
+    {
+      "metadata": "/f1/c42c9271e0/6/metadata.json",
+      "transcript": "/f1/c42c9271e0/6/full.jsonl",
+      "content_hash": "/f1/c42c9271e0/6/content_hash.txt",
+      "prompt": "/f1/c42c9271e0/6/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 1838146,
-    "cache_creation_tokens": 1447765,
-    "cache_read_tokens": 11546633,
-    "output_tokens": 69443,
-    "api_call_count": 211
+    "input_tokens": 1852955,
+    "cache_creation_tokens": 1523674,
+    "cache_read_tokens": 11974982,
+    "output_tokens": 71438,
+    "api_call_count": 229
   }
 }
