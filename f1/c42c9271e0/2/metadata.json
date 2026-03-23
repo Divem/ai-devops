@@ -1,9 +1,11 @@
 {
   "cli_version": "0.5.0",
   "checkpoint_id": "f1c42c9271e0",
+  "session_id": "2beeb850-77c1-4a8a-853f-c3a70b4c0a6d",
   "strategy": "manual-commit",
+  "created_at": "2026-03-23T14:07:05.998763Z",
   "branch": "refactor/pruned-version",
-  "checkpoints_count": 4,
+  "checkpoints_count": 0,
   "files_touched": [
     "openspec/FEATURES.md",
     "openspec/changes/archive/2026-03-23-skill-editor-page/.openspec.yaml",
@@ -27,31 +29,22 @@
     "openspec/specs/skill-tab-integration/spec.md",
     "pm-ai-app/src/PMPlatform.jsx"
   ],
-  "sessions": [
-    {
-      "metadata": "/f1/c42c9271e0/0/metadata.json",
-      "transcript": "/f1/c42c9271e0/0/full.jsonl",
-      "content_hash": "/f1/c42c9271e0/0/content_hash.txt",
-      "prompt": "/f1/c42c9271e0/0/prompt.txt"
-    },
-    {
-      "metadata": "/f1/c42c9271e0/1/metadata.json",
-      "transcript": "/f1/c42c9271e0/1/full.jsonl",
-      "content_hash": "/f1/c42c9271e0/1/content_hash.txt",
-      "prompt": "/f1/c42c9271e0/1/prompt.txt"
-    },
-    {
-      "metadata": "/f1/c42c9271e0/2/metadata.json",
-      "transcript": "/f1/c42c9271e0/2/full.jsonl",
-      "content_hash": "/f1/c42c9271e0/2/content_hash.txt",
-      "prompt": "/f1/c42c9271e0/2/prompt.txt"
-    }
-  ],
+  "agent": "Claude Code",
+  "turn_id": "3fd0f8b8abfb",
   "token_usage": {
-    "input_tokens": 58252,
-    "cache_creation_tokens": 176810,
-    "cache_read_tokens": 3317492,
-    "output_tokens": 20816,
-    "api_call_count": 69
+    "input_tokens": 53425,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 256,
+    "output_tokens": 213,
+    "api_call_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-23T14:07:05.933292Z",
+    "agent_lines": 1616,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1616,
+    "agent_percentage": 100
   }
 }
