@@ -1,0 +1,17 @@
+/opsx:apply 2026-03-14-git-batch-commit
+
+---
+
+2026-03-14-clarification-field-mapping
+2026-03-14-doc-diff-view
+2026-03-14-doc-inline-annotation
+2026-03-14-doc-version-rollback
+2026-03-14-git-batch-commit
+2026-03-14-git-commit-receipt-panel
+2026-03-14-git-pr-creation
+2026-03-14-kanban-column-sort
+2026-03-14-meego-api-adapter
+2026-03-14-meego-sync-mechanism
+2026-03-14-meego-sync-ui-and-fallback
+2026-03-14-skill-management-page
+2026-03-14-skill-prompt-editoropenspec/changes 下的这些文件夹的名称,去掉前面的日期
