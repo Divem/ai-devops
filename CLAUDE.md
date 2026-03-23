@@ -11,9 +11,6 @@ This is an AI-powered product management platform (PM AI Platform) - a React-bas
 ### Core Files
 
 - `pm-ai-app/src/PMPlatform.jsx` - **主要开发文件**（基于 Vite，持续更新）
-- `pm-ai-platform_sdd2.jsx` - SDD2 快照（不再更新，仅供参考）
-- `pm-ai-platform_sdd.jsx` - SDD 快照（不再更新，仅供参考）
-- `pm-ai-platform_vibe.jsx` - Vibe 设计系统变体（快照）
 
 ### Key Features
 

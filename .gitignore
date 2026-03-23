@@ -18,6 +18,7 @@ yarn.lock
 # Build
 dist/
 build/
+.vite/
 *.log
 
 # Environment variables (contains sensitive API keys)

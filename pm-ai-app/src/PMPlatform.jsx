@@ -87,6 +87,26 @@ const DOC_TYPES = [
   { key:"tasks",    label:"Tasks",          icon:"✅", color:"#10b981", group:"dev" },
 ];
 
+const priorityOrder = p => ({P0:0,P1:1,P2:2,P3:3}[p]??4);
+const SORT_OPTIONS = [
+  { key:'priority', label:'优先级', compare:(a,b)=>priorityOrder(a.priority)-priorityOrder(b.priority) },
+  { key:'author',   label:'负责人', compare:(a,b)=>(a.author||'').localeCompare(b.author||'') },
+  { key:'date',     label:'日期',   compare:(a,b)=>new Date(b.date)-new Date(a.date) },
+];
+function sortCardsInColumn(cards, sortConfig) {
+  if (!sortConfig) return cards;
+  const opt = SORT_OPTIONS.find(o => o.key === sortConfig.key);
+  if (!opt) return cards;
+  const sorted = [...cards].sort(opt.compare);
+  return sortConfig.asc ? sorted : sorted.reverse();
+}
+function loadColumnSortConfig() {
+  try { return JSON.parse(localStorage.getItem('kanban_column_sort')) || {}; } catch { return {}; }
+}
+function saveColumnSortConfig(cfg) {
+  try { localStorage.setItem('kanban_column_sort', JSON.stringify(cfg)); } catch {}
+}
+
 const priorityColor = p => ({P0:"#c0392b",P1:"#e67e22",P2:"#1a6cf6",P3:C.muted}[p]||C.muted);
 const scoreColor    = s => s>=80?C.success:s>=60?C.warn:C.danger;
 const scoreBg       = s => s>=80?C.successLight:s>=60?C.warnLight:C.dangerLight;
@@ -4628,7 +4648,7 @@ function readDetailLayoutWidths() {
   }
 }
 
-function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExpand, focusCardId, expandedProposals, onToggleProposal, width }) {
+function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExpand, focusCardId, expandedProposals, onToggleProposal, width, onBatchCommit }) {
   const [filters, setFilters] = useState(() => readDocTreeFiltersState());
   const [groupBy, setGroupBy] = useState("none");
   const [expandedGroups, setExpandedGroups] = useState(new Set());
@@ -4753,11 +4773,12 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
   );
 
   // ProposalFolder: 单个提案的展开/收起文件夹
-  const ProposalFolder = ({ cardId, proposal, indent = 2 }) => {
+  const ProposalFolder = ({ cardId, proposal, proposalIndex, indent = 2 }) => {
     const isOpen = expandedProposals?.has(proposal.id) ?? false;
     const completedDocs = PROPOSAL_DOC_TYPES.filter(dt => proposal[dt.key]).length;
     const gitSummary = summarizeProposalGitStatus(proposal);
     const allCommitted = gitSummary.allCommitted;
+    const hasUncommittedDocs = completedDocs > 0 && !allCommitted;
     return (
       <div>
         <button
@@ -4769,6 +4790,14 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
         >
           <span style={{fontSize:9,color:C.sbMuted,display:"inline-block",transform:isOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}>▶</span>
           <span style={{fontSize:12,color:isOpen?"#cba6f7":C.sbText,flex:1}}>{isOpen?"📂":"📁"} {proposal.name}</span>
+          {hasUncommittedDocs && onBatchCommit && (
+            <button
+              type="button"
+              title="提交全部文档"
+              onClick={(e) => { e.stopPropagation(); onBatchCommit(cardId, proposalIndex, proposal); }}
+              style={{fontSize:11,padding:"1px 6px",background:"#313150",color:C.accent,borderRadius:3,border:"none",cursor:"pointer",fontWeight:600,lineHeight:1.5,WebkitAppearance:"none",appearance:"none"}}
+            >↑ 提交</button>
+          )}
           {allCommitted
             ? <span style={{fontSize:9,padding:"1px 5px",background:"#1a3a28",color:"#a6e3a1",borderRadius:3,fontWeight:700}}>✓ Git</span>
             : gitSummary.partial
@@ -4840,8 +4869,8 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
                 <div style={{padding:`4px ${12 + (cardIndent + 1) * 16}px 2px`,fontSize:10,color:C.sbMuted,letterSpacing:1,textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>
                   OpenSpec 提案
                 </div>
-                {proposals.map(proposal => (
-                  <ProposalFolder key={proposal.id} cardId={card.id} proposal={proposal} indent={cardIndent + 1} />
+                {proposals.map((proposal, proposalIndex) => (
+                  <ProposalFolder key={proposal.id} cardId={card.id} proposal={proposal} proposalIndex={proposalIndex} indent={cardIndent + 1} />
                 ))}
               </div>
             )}
@@ -4903,6 +4932,153 @@ function DocTreeSidebar({ cards, selectedKey, onSelectKey, expanded, onToggleExp
           );
         })
       )}
+    </div>
+  );
+}
+
+// ── BatchCommitDialog ──
+function BatchCommitDialog({ card, proposal, proposalIndex, projectConfig, onClose, onCommitSuccess }) {
+  const files = useMemo(() => collectProposalFiles(card, proposalIndex), [card, proposalIndex]);
+  const defaultMessage = useMemo(() => generateBatchCommitMessage(card, proposal, files), [card, proposal, files]);
+  const [commitMsg, setCommitMsg] = useState(defaultMessage);
+  const [committing, setCommitting] = useState(false);
+  const [progress, setProgress] = useState(''); // 进度文本
+  const [result, setResult] = useState(null); // { ok, msg, links, failedProfileIds }
+
+  if (files.length === 0) {
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.45)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={onClose}>
+        <div style={{background:C.white,borderRadius:12,padding:24,maxWidth:460,width:'90%',boxShadow:'0 8px 32px rgba(0,0,0,.18)'}} onClick={(e) => e.stopPropagation()}>
+          <div style={{fontSize:15,fontWeight:600,marginBottom:12}}>批量提交</div>
+          <div style={{fontSize:13,color:C.muted}}>该提案下没有可提交的文档。</div>
+          <div style={{marginTop:16,textAlign:'right'}}>
+            <button onClick={onClose} style={{fontSize:13,padding:'6px 16px',borderRadius:6,border:`1px solid ${C.border}`,background:C.white,cursor:'pointer'}}>关闭</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const handleBatchCommit = async () => {
+    const targetProfiles = resolveTargetGitProfiles(card, projectConfig?.git);
+    if (!targetProfiles.length) {
+      setResult({ ok: false, msg: '未配置 Git 仓库，请先前往项目配置页面完善配置。' });
+      return;
+    }
+    setCommitting(true);
+    setResult(null);
+
+    const allResults = [];
+    for (let i = 0; i < targetProfiles.length; i++) {
+      const profile = targetProfiles[i];
+      setProgress(`正在提交到 ${profile.name || profile.repoUrl}...（${i + 1}/${targetProfiles.length}）`);
+      try {
+        const url = await batchCommitProposalToProfile(files, commitMsg, profile);
+        allResults.push({ profileId: profile.id, profile, ok: true, url, committedAt: new Date().toISOString() });
+      } catch (error) {
+        allResults.push({ profileId: profile.id, profile, ok: false, error: error?.message || '提交失败', committedAt: new Date().toISOString() });
+      }
+    }
+
+    const success = allResults.filter((r) => r.ok);
+    const failed = allResults.filter((r) => !r.ok);
+
+    if (success.length === 0) {
+      setResult({ ok: false, msg: failed[0]?.error || '提交失败', failedProfileIds: failed.map((r) => r.profileId) });
+    } else {
+      setResult({
+        ok: true,
+        partial: failed.length > 0,
+        msg: failed.length === 0 ? `提交成功（${files.length} 个文件，1 个 commit）` : `部分成功：${success.length}/${allResults.length} 仓库`,
+        links: success,
+        failedProfileIds: failed.map((r) => r.profileId),
+      });
+      // 通知父组件更新 gitStatus
+      if (onCommitSuccess) {
+        const docResults = {};
+        files.forEach((f) => {
+          docResults[f.docType] = {};
+          allResults.forEach((r) => {
+            docResults[f.docType][r.profileId] = { ok: r.ok, url: r.url || '', error: r.error || '', committedAt: r.committedAt };
+          });
+        });
+        onCommitSuccess({ proposalId: proposal.id, docResults });
+      }
+    }
+
+    setCommitting(false);
+    setProgress('');
+  };
+
+  const fileSizeStr = (content) => {
+    const bytes = new Blob([content]).size;
+    return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+  };
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.45)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={onClose}>
+      <div style={{background:C.white,borderRadius:12,padding:0,maxWidth:540,width:'92%',boxShadow:'0 8px 32px rgba(0,0,0,.18)',overflow:'hidden'}} onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div style={{padding:'16px 20px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:16}}>📦</span>
+          <span style={{fontSize:15,fontWeight:600,flex:1}}>批量提交 — {proposal.name || proposal.id}</span>
+          <button onClick={onClose} style={{fontSize:16,background:'none',border:'none',cursor:'pointer',color:C.muted,padding:4}}>✕</button>
+        </div>
+
+        {/* File list */}
+        <div style={{padding:'12px 20px',borderBottom:`1px solid ${C.border}`,maxHeight:200,overflowY:'auto'}}>
+          <div style={{fontSize:11,color:C.muted,marginBottom:8,fontFamily:"'DM Mono',monospace",textTransform:'uppercase',letterSpacing:1}}>提交文件（{files.length}）</div>
+          {files.map((f) => (
+            <div key={f.path} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',fontSize:12}}>
+              <span style={{width:6,height:6,borderRadius:'50%',background:C.success,flexShrink:0}} />
+              <span style={{flex:1,color:C.ink,fontFamily:"'DM Mono',monospace",fontSize:11}}>{f.path}</span>
+              <span style={{color:C.muted,fontSize:10,flexShrink:0}}>{fileSizeStr(f.content)}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Commit message */}
+        <div style={{padding:'12px 20px'}}>
+          <div style={{fontSize:11,color:C.muted,marginBottom:6,fontFamily:"'DM Mono',monospace",textTransform:'uppercase',letterSpacing:1}}>Commit Message</div>
+          <textarea
+            value={commitMsg}
+            onChange={(e) => setCommitMsg(e.target.value)}
+            disabled={committing}
+            rows={3}
+            style={{width:'100%',fontSize:12,fontFamily:"'DM Mono',monospace",padding:8,borderRadius:6,border:`1px solid ${C.border}`,resize:'vertical',boxSizing:'border-box',lineHeight:1.5}}
+          />
+        </div>
+
+        {/* Progress */}
+        {progress && (
+          <div style={{padding:'0 20px 8px',fontSize:12,color:C.accent}}>
+            ⏳ {progress}
+          </div>
+        )}
+
+        {/* Result */}
+        {result && (
+          <div style={{padding:'8px 20px',margin:'0 20px 8px',borderRadius:6,background:result.ok ? C.successLight : C.dangerLight,color:result.ok ? C.success : C.danger,fontSize:12}}>
+            {result.ok ? '✓' : '✗'} {result.msg}
+            {result.links?.map((item) => (
+              <a key={item.profileId} href={item.url} target="_blank" rel="noreferrer" style={{display:'block',fontSize:11,color:C.accent,marginTop:2}}>{item.profile?.name}: {item.url}</a>
+            ))}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{padding:'12px 20px',borderTop:`1px solid ${C.border}`,display:'flex',justifyContent:'flex-end',gap:8}}>
+          <button onClick={onClose} style={{fontSize:13,padding:'7px 18px',borderRadius:6,border:`1px solid ${C.border}`,background:C.white,cursor:'pointer'}}>
+            {result?.ok ? '完成' : '取消'}
+          </button>
+          {!result?.ok && (
+            <button onClick={handleBatchCommit} disabled={committing || !commitMsg.trim()}
+              style={{fontSize:13,padding:'7px 18px',borderRadius:6,border:'none',background:committing ? C.muted : C.accent,color:C.white,cursor:committing ? 'default' : 'pointer',fontWeight:600}}>
+              {committing ? '提交中...' : '确认提交'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -6323,6 +6499,9 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, o
   const [proposalGenerating, setProposalGenerating] = useState(false);
   const [proposalGeneratingStep, setProposalGeneratingStep] = useState(null);
   const [proposalGenerateError, setProposalGenerateError] = useState(null);
+
+  // BatchCommitDialog state
+  const [batchCommitTarget, setBatchCommitTarget] = useState(null); // { cardId, proposalIndex, proposal }
   const [showClarificationDemoDialog, setShowClarificationDemoDialog] = useState(false);
   const [clarificationDemoQuestions, setClarificationDemoQuestions] = useState([]);
   const [clarificationDemoAnswers, setClarificationDemoAnswers] = useState({});
@@ -6490,6 +6669,23 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, o
     });
     onUpdateDocs(selCard.id, { ...nd, proposals: updatedProposals }, hasAnySuccess ? { col: 'submitted' } : {});
   }, [selCard, selProposalId, onUpdateDocs]);
+
+  // ── 批量提交成功后持久化 gitStatus（所有文档）
+  const handleBatchCommitSuccess = useCallback(({ proposalId, docResults }) => {
+    const targetCard = batchCommitTarget ? cards.find((c) => c.id === batchCommitTarget.cardId) : null;
+    if (!targetCard) return;
+    const nd = normalizeDocs(targetCard.docs);
+    const updatedProposals = nd.proposals.map((proposal) => {
+      if (proposal.id !== proposalId) return proposal;
+      const nextGitStatus = { ...(proposal.gitStatus || {}), committedAt: new Date().toISOString() };
+      Object.entries(docResults).forEach(([docType, profileResults]) => {
+        nextGitStatus[docType] = { ...(nextGitStatus[docType] || {}), ...profileResults };
+      });
+      return { ...proposal, gitStatus: nextGitStatus };
+    });
+    const hasAnySuccess = Object.values(docResults).some((pr) => Object.values(pr).some((r) => r.ok));
+    onUpdateDocs(targetCard.id, { ...nd, proposals: updatedProposals }, hasAnySuccess ? { col: 'submitted' } : {});
+  }, [batchCommitTarget, cards, onUpdateDocs]);
 
   // ── 更新文档内容（区分 prd / 提案文档）
   const updateDocContent = (docs, docType, proposalId, content) => {
@@ -6943,6 +7139,7 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, o
           focusCardId={focusCardId}
           expandedProposals={expandedProposals}
           onToggleProposal={toggleProposal}
+          onBatchCommit={(cardId, proposalIndex, proposal) => setBatchCommitTarget({ cardId, proposalIndex, proposal })}
         />
 
         <div
@@ -7027,6 +7224,18 @@ function DetailPage({ cards, focusCardId, onBack, onUpdateDocs, onSendMessage, o
           reviewing={proposalReviewing}
           generating={proposalGenerating}
           generatingStep={proposalGeneratingStep}
+        />
+      )}
+
+      {/* BatchCommitDialog */}
+      {batchCommitTarget && (
+        <BatchCommitDialog
+          card={cards.find((c) => c.id === batchCommitTarget.cardId)}
+          proposal={batchCommitTarget.proposal}
+          proposalIndex={batchCommitTarget.proposalIndex}
+          projectConfig={projectConfig}
+          onClose={() => setBatchCommitTarget(null)}
+          onCommitSuccess={handleBatchCommitSuccess}
         />
       )}
 
@@ -7122,6 +7331,127 @@ async function commitDocToGit(filePath, content, commitMessage, config) {
     if (!putRes.ok) { const err = await putRes.json(); throw new Error(err.message || `HTTP ${putRes.status}`); }
     return `${baseUrl}/${owner}/${repo}/-/blob/${branch}/${filePath}`;
   }
+}
+
+// ── GitHub Git Data API 批量提交（原子操作：blobs → tree → commit → update ref）
+async function batchCommitToGitHub(files, commitMessage, config) {
+  const { repoUrl, branch, token } = config;
+  const { owner, repo } = parseRepoUrl(repoUrl);
+  if (!owner || !repo) throw new Error('无法解析仓库 URL，请检查格式');
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/vnd.github.v3+json',
+    'Content-Type': 'application/json',
+  };
+  const api = (path, opts = {}) => fetch(`https://api.github.com/repos/${owner}/${repo}${path}`, { headers, ...opts }).then(async (r) => {
+    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || `GitHub API ${r.status}`); }
+    return r.json();
+  });
+
+  // 1. 获取当前分支 ref
+  const ref = await api(`/git/ref/heads/${branch}`);
+  const latestCommitSha = ref.object.sha;
+
+  // 2. 获取当前 commit 的 tree SHA
+  const latestCommit = await api(`/git/commits/${latestCommitSha}`);
+  const baseTreeSha = latestCommit.tree.sha;
+
+  // 3. 为每个文件创建 blob
+  const treeItems = [];
+  for (let i = 0; i < files.length; i++) {
+    const blob = await api('/git/blobs', {
+      method: 'POST',
+      body: JSON.stringify({ content: files[i].content, encoding: 'utf-8' }),
+    });
+    treeItems.push({ path: files[i].path, mode: '100644', type: 'blob', sha: blob.sha });
+  }
+
+  // 4. 创建新 tree
+  const newTree = await api('/git/trees', {
+    method: 'POST',
+    body: JSON.stringify({ base_tree: baseTreeSha, tree: treeItems }),
+  });
+
+  // 5. 创建 commit
+  const newCommit = await api('/git/commits', {
+    method: 'POST',
+    body: JSON.stringify({ message: commitMessage, tree: newTree.sha, parents: [latestCommitSha] }),
+  });
+
+  // 6. 更新分支引用（force: true 处理非快进情况）
+  try {
+    await api(`/git/refs/heads/${branch}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ sha: newCommit.sha, force: true }),
+    });
+  } catch (e) {
+    if (e.message?.includes('protected branch') || e.message?.includes('422')) {
+      throw new Error(`分支 "${branch}" 可能开启了保护规则，无法直接推送。请检查 GitHub 仓库设置，或换用非保护分支。\n原始错误: ${e.message}`);
+    }
+    throw e;
+  }
+
+  return `https://github.com/${owner}/${repo}/commit/${newCommit.sha}`;
+}
+
+// ── GitLab Commits API 批量提交（原生多文件支持）
+async function batchCommitToGitLab(files, commitMessage, config) {
+  const { repoUrl, branch, token } = config;
+  const { owner, repo } = parseRepoUrl(repoUrl);
+  if (!owner || !repo) throw new Error('无法解析仓库 URL，请检查格式');
+  const baseUrl = repoUrl.match(/^(https?:\/\/[^/]+)/)?.[1] || 'https://gitlab.com';
+  const projectId = encodeURIComponent(`${owner}/${repo}`);
+  const headers = { 'PRIVATE-TOKEN': token, 'Content-Type': 'application/json' };
+
+  // 先检查每个文件是否已存在，决定 action 是 create 还是 update
+  const actions = [];
+  for (const file of files) {
+    const encodedPath = encodeURIComponent(file.path);
+    let action = 'create';
+    try {
+      const res = await fetch(`${baseUrl}/api/v4/projects/${projectId}/repository/files/${encodedPath}?ref=${branch}`, { headers });
+      if (res.ok) action = 'update';
+    } catch {}
+    actions.push({ action, file_path: file.path, content: file.content });
+  }
+
+  const res = await fetch(`${baseUrl}/api/v4/projects/${projectId}/repository/commits`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ branch, commit_message: commitMessage, actions }),
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || `GitLab API ${res.status}`); }
+  const result = await res.json();
+  return result.web_url || `${baseUrl}/${owner}/${repo}/-/commit/${result.id}`;
+}
+
+// ── 收集提案文件
+function collectProposalFiles(card, proposalIndex) {
+  const norm = normalizeDocs(card.docs);
+  const proposal = norm.proposals?.[proposalIndex];
+  if (!proposal) return [];
+  const reqId = card.id.toLowerCase();
+  const base = `docs/requirements/${reqId}/proposals/${proposal.id}`;
+  const files = [];
+  if (proposal.proposal) files.push({ path: `${base}/proposal.md`, content: proposal.proposal, docType: 'proposal' });
+  if (proposal.design) files.push({ path: `${base}/design.md`, content: proposal.design, docType: 'design' });
+  if (proposal.spec) files.push({ path: `${base}/spec.md`, content: proposal.spec, docType: 'spec' });
+  if (proposal.tasks) files.push({ path: `${base}/tasks.md`, content: proposal.tasks, docType: 'tasks' });
+  return files;
+}
+
+// ── 生成批量提交的 commit message
+function generateBatchCommitMessage(card, proposal, files) {
+  const body = files.map((f) => `- ${f.path.split('/').pop()}: ${({ proposal: '技术提案', design: '技术设计', spec: '变更规格', tasks: '任务清单' })[f.docType] || f.docType}`).join('\n');
+  return `feat(${card.id}): 提交${proposal.name || proposal.id}提案文档\n\n${body}`;
+}
+
+// ── 批量提交提案文档到单个 Git profile（原子操作）
+async function batchCommitProposalToProfile(files, commitMessage, profile) {
+  if (profile.platform === 'gitlab') {
+    return batchCommitToGitLab(files, commitMessage, profile);
+  }
+  return batchCommitToGitHub(files, commitMessage, profile);
 }
 
 async function commitCardDocsToGit(card, config) {
@@ -7315,7 +7645,7 @@ function saveProjectConfig(config) {
   return normalizedConfig;
 }
 
-function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggleThemeMode }) {
+function ProjectSettingsPage({ projectConfig, onSave, onBack, onNavigateToSkills, themeMode, onToggleThemeMode }) {
   const [activeNav, setActiveNav]       = useState('project');
   const [projectSpaceIds, setProjectSpaceIds]         = useState(() => toIdArray(projectConfig.project?.spaceIds));
   const [projectSubsystemIds, setProjectSubsystemIds] = useState(() => toIdArray(projectConfig.project?.subsystemIds));
@@ -7408,9 +7738,7 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
   });
   const availableApps = Array.from(availableAppMap.values());
 
-  const selectedAppNames = availableApps
-    .filter(app => projectAppIds.includes(app.id))
-    .map(app => app.name);
+  const selectedApps = availableApps.filter(app => projectAppIds.includes(app.id));
 
   useEffect(() => {
     const normalized = normalizeGitConfig(projectConfig.git);
@@ -7485,6 +7813,13 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
   const inputStyle   = { width: '100%', padding: '8px 12px', border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, background: C.cream, color: C.ink, outline: 'none', boxSizing: 'border-box', fontFamily: "'DM Mono',monospace" };
   const errStyle     = { fontSize: 11, color: C.danger, marginTop: 4 };
   const multiBoxStyle = { border: `1px solid ${C.border}`, borderRadius: 6, background: C.cream, padding: 8, display: 'grid', gap: 6, marginBottom: 10 };
+  const associationShellStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 18, alignItems: 'start' };
+  const associationPanelStyle = { border: `1px solid ${C.border}`, borderRadius: 10, background: C.white, padding: 18, boxShadow: '0 1px 0 rgba(13,14,18,0.03)' };
+  const associationSectionTitleStyle = { fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.muted, marginBottom: 6, fontFamily: "'DM Mono',monospace" };
+  const associationHintStyle = { fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 1.6 };
+  const summaryListStyle = { display: 'flex', flexWrap: 'wrap', gap: 8 };
+  const summaryChipStyle = { display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: 999, background: C.accentLight, color: C.accent, fontSize: 12, fontWeight: 600 };
+  const summaryEmptyStyle = { fontSize: 12, color: C.muted, lineHeight: 1.6 };
 
   const handleTestAI = async () => {
     setAiTestStatus('testing');
@@ -7796,72 +8131,122 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
               <h2 style={{ fontWeight: 700, fontSize: 18, color: C.ink, marginBottom: 4 }}>项目配置</h2>
               <p style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>先建立项目关联上下文，再进行仓库和模型配置。</p>
               <div style={sectionStyle}>
-                <label style={labelStyle}>关联空间</label>
-                <div style={multiBoxStyle}>
-                  {PROJECT_ASSOCIATION_OPTIONS.map(space => (
-                    <label key={space.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.ink, cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={projectSpaceIds.includes(space.id)}
-                        onChange={e => handleToggleSpace(space.id, e.target.checked)}
-                      />
-                      <span>{space.name}</span>
-                    </label>
-                  ))}
-                </div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>可直接勾选多个空间。</div>
+                <div style={associationShellStyle}>
+                  <div style={associationPanelStyle}>
+                    <div style={associationSectionTitleStyle}>关联选择</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 8 }}>按空间到应用逐级建立项目上下文</div>
+                    <div style={associationHintStyle}>先选择空间，再筛选子系统，最后确定关联项目（应用）。左侧负责选择，右侧实时展示当前结果，方便你边选边确认。</div>
 
-                <label style={labelStyle}>关联子系统</label>
-                <div style={{ ...multiBoxStyle, opacity: projectSpaceIds.length ? 1 : 0.6 }}>
-                  {!availableSubsystems.length && <div style={{ fontSize: 12, color: C.muted }}>暂无可选子系统</div>}
-                  {availableSubsystems.map(subsystem => (
-                    <label key={subsystem.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.ink, cursor: projectSpaceIds.length ? 'pointer' : 'not-allowed' }}>
-                      <input
-                        type="checkbox"
-                        checked={projectSubsystemIds.includes(subsystem.id)}
-                        onChange={e => handleToggleSubsystem(subsystem.id, e.target.checked)}
-                        disabled={!projectSpaceIds.length}
-                      />
-                      <span>{subsystem.name}</span>
-                    </label>
-                  ))}
-                </div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>请先选择至少一个空间后再选择子系统</div>
+                    <label style={labelStyle}>关联空间</label>
+                    <div style={multiBoxStyle}>
+                      {PROJECT_ASSOCIATION_OPTIONS.map(space => (
+                        <label key={space.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.ink, cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={projectSpaceIds.includes(space.id)}
+                            onChange={e => handleToggleSpace(space.id, e.target.checked)}
+                          />
+                          <span>{space.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>第 1 步：可直接勾选多个空间，系统会自动合并可选子系统。</div>
 
-                <label style={labelStyle}>关联项目（应用）</label>
-                <div style={{ ...multiBoxStyle, opacity: projectSubsystemIds.length ? 1 : 0.6 }}>
-                  {!availableApps.length && <div style={{ fontSize: 12, color: C.muted }}>暂无可选应用</div>}
-                  {availableApps.map(app => (
-                    <label key={app.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.ink, cursor: projectSubsystemIds.length ? 'pointer' : 'not-allowed' }}>
-                      <input
-                        type="checkbox"
-                        checked={projectAppIds.includes(app.id)}
-                        onChange={e => handleToggleApp(app.id, e.target.checked)}
-                        disabled={!projectSubsystemIds.length}
-                      />
-                      <span>{app.name}</span>
-                    </label>
-                  ))}
-                </div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>请先选择至少一个子系统后再选择应用</div>
+                    <label style={labelStyle}>关联子系统</label>
+                    <div style={{ ...multiBoxStyle, opacity: projectSpaceIds.length ? 1 : 0.6 }}>
+                      {!availableSubsystems.length && <div style={{ fontSize: 12, color: C.muted }}>请先选择至少一个空间，随后这里会展示对应子系统。</div>}
+                      {availableSubsystems.map(subsystem => (
+                        <label key={subsystem.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.ink, cursor: projectSpaceIds.length ? 'pointer' : 'not-allowed' }}>
+                          <input
+                            type="checkbox"
+                            checked={projectSubsystemIds.includes(subsystem.id)}
+                            onChange={e => handleToggleSubsystem(subsystem.id, e.target.checked)}
+                            disabled={!projectSpaceIds.length}
+                          />
+                          <span>{subsystem.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>第 2 步：子系统基于已选空间联动显示；取消空间后，无效子系统会自动清理。</div>
 
-                <div style={{ fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 1.6 }}>
-                  当前已选：
-                  <span style={{ color: C.ink, fontWeight: 500 }}>
-                    {(selectedSpaces.map(space => space.name).join('、') || '未选择空间')}
-                    {' / '}
-                    {(selectedSubsystems.map(subsystem => subsystem.name).join('、') || '未选择子系统')}
-                    {' / '}
-                    {(selectedAppNames.join('、') || '未选择应用')}
-                  </span>
-                </div>
+                    <label style={labelStyle}>关联项目（应用）</label>
+                    <div style={{ ...multiBoxStyle, opacity: projectSubsystemIds.length ? 1 : 0.6 }}>
+                      {!availableApps.length && <div style={{ fontSize: 12, color: C.muted }}>请先选择至少一个子系统，随后这里会展示对应应用。</div>}
+                      {availableApps.map(app => (
+                        <label key={app.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.ink, cursor: projectSubsystemIds.length ? 'pointer' : 'not-allowed' }}>
+                          <input
+                            type="checkbox"
+                            checked={projectAppIds.includes(app.id)}
+                            onChange={e => handleToggleApp(app.id, e.target.checked)}
+                            disabled={!projectSubsystemIds.length}
+                          />
+                          <span>{app.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>第 3 步：应用列表基于已选子系统联动显示；取消子系统后，无效应用会自动清理。</div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button onClick={handleSaveProject}
-                    style={{ padding: '8px 20px', background: C.accent, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                    保存项目配置
-                  </button>
-                  {savedProject && <span style={{ fontSize: 12, color: C.success }}>✓ 已保存</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <button onClick={handleSaveProject}
+                        style={{ padding: '8px 20px', background: C.accent, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                        保存项目配置
+                      </button>
+                      {savedProject && <span style={{ fontSize: 12, color: C.success }}>✓ 已保存</span>}
+                    </div>
+                  </div>
+
+                  <div style={{ ...associationPanelStyle, background: C.cream }}>
+                    <div style={associationSectionTitleStyle}>当前已选</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 8 }}>结果会随着左侧选择实时同步</div>
+                    <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>你可以在这里快速确认最终关联范围。若上层选项被取消，系统会同步清理右侧已失效的下层结果。</div>
+
+                    <div style={{ display: 'grid', gap: 12, marginBottom: 18 }}>
+                      <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.white, padding: 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>空间</span>
+                          <span style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace" }}>{selectedSpaces.length} selected</span>
+                        </div>
+                        {selectedSpaces.length ? (
+                          <div style={summaryListStyle}>
+                            {selectedSpaces.map(space => <span key={space.id} style={summaryChipStyle}>{space.name}</span>)}
+                          </div>
+                        ) : <div style={summaryEmptyStyle}>未选择空间</div>}
+                      </div>
+
+                      <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.white, padding: 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>子系统</span>
+                          <span style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace" }}>{selectedSubsystems.length} selected</span>
+                        </div>
+                        {selectedSubsystems.length ? (
+                          <div style={summaryListStyle}>
+                            {selectedSubsystems.map(subsystem => <span key={subsystem.id} style={summaryChipStyle}>{subsystem.name}</span>)}
+                          </div>
+                        ) : <div style={summaryEmptyStyle}>未选择子系统</div>}
+                      </div>
+
+                      <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.white, padding: 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>项目（应用）</span>
+                          <span style={{ fontSize: 11, color: C.muted, fontFamily: "'DM Mono',monospace" }}>{selectedApps.length} selected</span>
+                        </div>
+                        {selectedApps.length ? (
+                          <div style={summaryListStyle}>
+                            {selectedApps.map(app => <span key={app.id} style={summaryChipStyle}>{app.name}</span>)}
+                          </div>
+                        ) : <div style={summaryEmptyStyle}>未选择应用</div>}
+                      </div>
+                    </div>
+
+                    <div style={{ borderRadius: 10, background: '#f7f3ec', border: `1px dashed ${C.border}`, padding: 14 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 8 }}>配置规则</div>
+                      <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.7 }}>
+                        1. 先选空间，再选子系统，最后选应用。<br/>
+                        2. 上层范围变更后，下层无效项会自动移除。<br/>
+                        3. 点击“保存项目配置”后，刷新页面仍会恢复当前结果。
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
           </div>
@@ -8033,17 +8418,26 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
                     <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>Keys 保存在浏览器本地，不上传服务器。</div>
 
                     <label style={labelStyle}>API Base URL</label>
-                    <input value={anthropicBaseUrl} onChange={e => setAnthropicBaseUrl(e.target.value)}
-                      placeholder="/api/anthropic/v1/messages" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>留空使用默认端点，可填写代理地址。</div>
-                    <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
-                      {anthropicBaseUrl ? `实际请求地址: 自定义（${anthropicBaseUrl}）` : '实际请求地址: https://api.anthropic.com/v1/messages'}
-                    </div>
+                    <select value={['', '/api/anthropic/v1/messages'].includes(anthropicBaseUrl) ? anthropicBaseUrl : '__custom__'}
+                      onChange={e => {
+                        if (e.target.value === '__custom__') {
+                          if (['', '/api/anthropic/v1/messages'].includes(anthropicBaseUrl)) setAnthropicBaseUrl('https://');
+                        } else { setAnthropicBaseUrl(e.target.value); }
+                      }}
+                      style={{ ...inputStyle, marginBottom: !['', '/api/anthropic/v1/messages'].includes(anthropicBaseUrl) ? 4 : 12, fontFamily: 'inherit', cursor: 'pointer' }}>
+                      <option value="">Claude 默认: https://api.anthropic.com/v1/messages</option>
+                      <option value="/api/anthropic/v1/messages">本地代理: /api/anthropic/v1/messages</option>
+                      <option value="__custom__">自定义...</option>
+                    </select>
+                    {!['', '/api/anthropic/v1/messages'].includes(anthropicBaseUrl) && (
+                      <input value={anthropicBaseUrl} onChange={e => setAnthropicBaseUrl(e.target.value)}
+                        placeholder="https://your-proxy.com/v1/messages" style={{ ...inputStyle, marginBottom: 12 }}/>
+                    )}
 
                     <label style={labelStyle}>Model Name</label>
                     <input value={anthropicModel} onChange={e => setAnthropicModel(e.target.value)}
-                      placeholder="claude-sonnet-4-20250514" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: claude-sonnet-4-20250514, claude-haiku-4-5-20251001</div>
+                      placeholder="claude-sonnet-4-6" style={{ ...inputStyle, marginBottom: 4 }}/>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: claude-sonnet-4-6, claude-opus-4-6, claude-haiku-4-5-20251001</div>
                   </>
                 )}
 
@@ -8063,15 +8457,25 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
                       申请地址：<a href="https://open.bigmodel.cn/usercenter/apikeys" target="_blank" rel="noreferrer" style={{ color: C.accent }}>open.bigmodel.cn</a>
                     </div>
                     <label style={labelStyle}>API Base URL</label>
-                    <input value={glmBaseUrl} onChange={e => setGlmBaseUrl(e.target.value)}
-                      placeholder="https://open.bigmodel.cn/api/paas/v4/chat/completions" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
-                      {glmBaseUrl ? `实际请求地址: 自定义（${glmBaseUrl}）` : '实际请求地址: https://open.bigmodel.cn/api/paas/v4/chat/completions'}
-                    </div>
+                    <select value={[''].includes(glmBaseUrl) ? glmBaseUrl : '__custom__'}
+                      onChange={e => {
+                        if (e.target.value === '__custom__') {
+                          if (glmBaseUrl === '') setGlmBaseUrl('https://');
+                        } else { setGlmBaseUrl(e.target.value); }
+                      }}
+                      style={{ ...inputStyle, marginBottom: glmBaseUrl !== '' ? 4 : 12, fontFamily: 'inherit', cursor: 'pointer' }}>
+                      <option value="">GLM 默认: https://open.bigmodel.cn/api/paas/v4/chat/completions</option>
+                      <option value="__custom__">自定义...</option>
+                    </select>
+                    {glmBaseUrl !== '' && (
+                      <input value={glmBaseUrl} onChange={e => setGlmBaseUrl(e.target.value)}
+                        placeholder="https://your-proxy.com/chat/completions" style={{ ...inputStyle, marginBottom: 12 }}/>
+                    )}
+
                     <label style={labelStyle}>Model Name</label>
                     <input value={glmModel} onChange={e => setGlmModel(e.target.value)}
-                      placeholder="glm-4" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: glm-4, glm-4-flash, glm-4-long</div>
+                      placeholder="glm-4-plus" style={{ ...inputStyle, marginBottom: 4 }}/>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: glm-4-plus, glm-4-long, glm-4-flash, glm-4.7-flash</div>
                   </>
                 )}
 
@@ -8091,15 +8495,26 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
                       申请地址：<a href="https://ark.cn-beijing.volces.com" target="_blank" rel="noreferrer" style={{ color: C.accent }}>ark.cn-beijing.volces.com</a>
                     </div>
                     <label style={labelStyle}>API Base URL</label>
-                    <input value={arkBaseUrl} onChange={e => setArkBaseUrl(e.target.value)}
-                      placeholder="https://ark.cn-beijing.volces.com/api/coding/v3" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
-                      {arkBaseUrl ? `实际请求地址: 自定义（${arkBaseUrl}）` : '实际请求地址: https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions'}
-                    </div>
+                    <select value={['', '/api/ark/v3/chat/completions'].includes(arkBaseUrl) ? arkBaseUrl : '__custom__'}
+                      onChange={e => {
+                        if (e.target.value === '__custom__') {
+                          if (['', '/api/ark/v3/chat/completions'].includes(arkBaseUrl)) setArkBaseUrl('https://');
+                        } else { setArkBaseUrl(e.target.value); }
+                      }}
+                      style={{ ...inputStyle, marginBottom: !['', '/api/ark/v3/chat/completions'].includes(arkBaseUrl) ? 4 : 12, fontFamily: 'inherit', cursor: 'pointer' }}>
+                      <option value="">ARK 默认: https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions</option>
+                      <option value="/api/ark/v3/chat/completions">本地代理: /api/ark/v3/chat/completions</option>
+                      <option value="__custom__">自定义...</option>
+                    </select>
+                    {!['', '/api/ark/v3/chat/completions'].includes(arkBaseUrl) && (
+                      <input value={arkBaseUrl} onChange={e => setArkBaseUrl(e.target.value)}
+                        placeholder="https://your-proxy.com/v3/chat/completions" style={{ ...inputStyle, marginBottom: 12 }}/>
+                    )}
+
                     <label style={labelStyle}>Model Name</label>
                     <input value={arkModel} onChange={e => setArkModel(e.target.value)}
                       placeholder="ark-code-latest" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: ark-code-latest</div>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: ark-code-latest, doubao-seed-2.0-code, doubao-seed-2.0-pro, doubao-seed-2.0-lite</div>
                   </>
                 )}
 
@@ -8119,15 +8534,26 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
                       在 Kimi 会员页面生成 API Key
                     </div>
                     <label style={labelStyle}>API Base URL</label>
-                    <input value={kimiBaseUrl} onChange={e => setKimiBaseUrl(e.target.value)}
-                      placeholder="/api/kimi/v1/messages（默认走本地代理）" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
-                      {kimiBaseUrl ? `实际请求地址: 自定义（${kimiBaseUrl}）` : '实际请求地址: https://api.kimi.com/coding/v1/messages'}
-                    </div>
+                    <select value={['', '/api/kimi/v1/messages'].includes(kimiBaseUrl) ? kimiBaseUrl : '__custom__'}
+                      onChange={e => {
+                        if (e.target.value === '__custom__') {
+                          if (['', '/api/kimi/v1/messages'].includes(kimiBaseUrl)) setKimiBaseUrl('https://');
+                        } else { setKimiBaseUrl(e.target.value); }
+                      }}
+                      style={{ ...inputStyle, marginBottom: !['', '/api/kimi/v1/messages'].includes(kimiBaseUrl) ? 4 : 12, fontFamily: 'inherit', cursor: 'pointer' }}>
+                      <option value="">Kimi 默认: https://api.kimi.com/coding/v1/messages</option>
+                      <option value="/api/kimi/v1/messages">本地代理: /api/kimi/v1/messages</option>
+                      <option value="__custom__">自定义...</option>
+                    </select>
+                    {!['', '/api/kimi/v1/messages'].includes(kimiBaseUrl) && (
+                      <input value={kimiBaseUrl} onChange={e => setKimiBaseUrl(e.target.value)}
+                        placeholder="https://your-proxy.com/v1/messages" style={{ ...inputStyle, marginBottom: 12 }}/>
+                    )}
+
                     <label style={labelStyle}>Model Name</label>
                     <input value={kimiModel} onChange={e => setKimiModel(e.target.value)}
-                      placeholder="kimi-latest" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: kimi-k2.5, moonshot-v1-8k, moonshot-v1-32k, moonshot-v1-128k</div>
+                      placeholder="kimi-k2.5" style={{ ...inputStyle, marginBottom: 4 }}/>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 20 }}>可选: kimi-k2.5, kimi-k2-instruct</div>
                   </>
                 )}
 
@@ -8139,11 +8565,42 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
                       placeholder="My Custom Model" style={{ ...inputStyle, marginBottom: 12 }}/>
 
                     <label style={labelStyle}>Base URL</label>
-                    <input value={customBaseUrl} onChange={e => setCustomBaseUrl(e.target.value)}
-                      placeholder="https://api.openai.com" style={{ ...inputStyle, marginBottom: 4 }}/>
-                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>
-                      {customFormat === 'anthropic' ? '不含路径，系统自动追加 /v1/messages' : '不含路径，系统自动追加 /chat/completions'}
-                    </div>
+                    {(() => {
+                      const presets = customFormat === 'anthropic'
+                        ? ['', 'https://api.anthropic.com', '/api/anthropic']
+                        : ['', 'https://api.openai.com', 'https://api.deepseek.com', 'https://api.groq.com/openai', 'https://api.together.xyz'];
+                      const isCustom = !presets.includes(customBaseUrl);
+                      const suffix = customFormat === 'anthropic' ? '/v1/messages' : '/chat/completions';
+                      return <>
+                        <select value={isCustom ? '__custom__' : customBaseUrl}
+                          onChange={e => {
+                            if (e.target.value === '__custom__') {
+                              if (!isCustom) setCustomBaseUrl('https://');
+                            } else { setCustomBaseUrl(e.target.value); }
+                          }}
+                          style={{ ...inputStyle, marginBottom: 4, fontFamily: 'inherit', cursor: 'pointer' }}>
+                          <option value="">请选择...</option>
+                          {customFormat !== 'anthropic' && <>
+                            <option value="https://api.openai.com">OpenAI: https://api.openai.com{suffix}</option>
+                            <option value="https://api.deepseek.com">DeepSeek: https://api.deepseek.com{suffix}</option>
+                            <option value="https://api.groq.com/openai">Groq: https://api.groq.com/openai{suffix}</option>
+                            <option value="https://api.together.xyz">Together AI: https://api.together.xyz{suffix}</option>
+                          </>}
+                          {customFormat === 'anthropic' && <>
+                            <option value="https://api.anthropic.com">Anthropic: https://api.anthropic.com{suffix}</option>
+                            <option value="/api/anthropic">本地代理: /api/anthropic{suffix}</option>
+                          </>}
+                          <option value="__custom__">自定义...</option>
+                        </select>
+                        {isCustom && (
+                          <input value={customBaseUrl} onChange={e => setCustomBaseUrl(e.target.value)}
+                            placeholder="https://your-api.com" style={{ ...inputStyle, marginBottom: 4 }}/>
+                        )}
+                        {isCustom && <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>
+                          不含路径，系统自动追加 {suffix}
+                        </div>}
+                      </>;
+                    })()}
                     {customBaseUrl && (
                       <div style={{ fontSize: 11, color: C.teal, marginBottom: 12 }}>
                         {customFormat === 'anthropic' ? `实际请求地址: ${customBaseUrl}/v1/messages` : `实际请求地址: ${customBaseUrl}/chat/completions`}
@@ -8168,8 +8625,12 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
                     <label style={labelStyle}>API 格式</label>
                     <select value={customFormat} onChange={e => {
                       const fmt = e.target.value;
+                      const oldPresets = customFormat === 'anthropic'
+                        ? ['https://api.anthropic.com', '/api/anthropic']
+                        : ['https://api.openai.com', 'https://api.deepseek.com', 'https://api.groq.com/openai', 'https://api.together.xyz'];
                       setCustomFormat(fmt);
                       if (fmt === 'anthropic') setCustomAuthStyle('x-api-key');
+                      if (oldPresets.includes(customBaseUrl)) setCustomBaseUrl('');
                     }}
                       style={{ ...inputStyle, marginBottom: 12, fontFamily: 'inherit', cursor: 'pointer' }}>
                       <option value="openai">OpenAI Compatible</option>
@@ -8273,7 +8734,15 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
 
           {/* AI Skill 管理板块 */}
           <div ref={skillsRef} style={{ marginBottom: 48 }}>
-              <h2 style={{ fontWeight: 700, fontSize: 18, color: C.ink, marginBottom: 4 }}>Agent Skill 管理</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <h2 style={{ fontWeight: 700, fontSize: 18, color: C.ink, margin: 0 }}>Agent Skill 管理</h2>
+                {onNavigateToSkills && (
+                  <button onClick={onNavigateToSkills}
+                    style={{ padding: '5px 12px', border: `1px solid ${C.accent}44`, borderRadius: 6, background: C.accentLight, color: C.accent, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                    前往独立管理页面 →
+                  </button>
+                )}
+              </div>
               <p style={{ fontSize: 13, color: C.muted, marginBottom: 24 }}>系统内置标准 Skill 模板，支持按 Skill 与文件结构快速浏览和编辑。</p>
               <div style={{ display: 'flex', gap: 10, alignItems: 'stretch', flexWrap: 'wrap' }}>
                 <div style={{ ...sectionStyle, margin: 0, width: 420, flexShrink: 0, padding: 0, display: 'flex', overflow: 'hidden' }}>
@@ -8399,6 +8868,464 @@ function ProjectSettingsPage({ projectConfig, onSave, onBack, themeMode, onToggl
 
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════ SKILL MANAGEMENT PAGE ═════════════════════════ */
+
+function getSkillList() {
+  const builtinSkills = Object.values(AI_SKILLS);
+  let customPrompts = {};
+  try { customPrompts = JSON.parse(localStorage.getItem('ai_skill_prompts') || '{}'); } catch {}
+  let disabledSkills = [];
+  try { disabledSkills = JSON.parse(localStorage.getItem('skill_disabled') || '[]'); } catch {}
+  return builtinSkills.map(s => ({
+    ...s,
+    isCustomized: getSkillTemplateSource(s.id) === 'custom',
+    isDisabled: disabledSkills.includes(s.id),
+    customPrompt: customPrompts[s.id] || null,
+    group: 'builtin',
+  }));
+}
+
+function exportSkillJson(skills) {
+  return JSON.stringify({
+    version: '1.0',
+    exportedAt: new Date().toISOString(),
+    skills: skills.map(s => ({
+      id: s.id,
+      name: s.name,
+      icon: s.icon,
+      desc: s.desc,
+      prompt: s.isCustomized ? (typeof s.customPrompt === 'string' ? s.customPrompt : s.customPrompt?.files?.['SKILL.md'] || s.defaultPrompt) : s.defaultPrompt,
+      isCustomized: s.isCustomized,
+    })),
+  }, null, 2);
+}
+
+function downloadJson(filename, jsonStr) {
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function SkillManagementPage({ themeMode }) {
+  const [skills, setSkills] = useState(() => getSkillList());
+  const [filter, setFilter] = useState('all'); // 'all' | 'builtin' | 'custom'
+  const [menuOpenId, setMenuOpenId] = useState(null);
+  const [confirmResetId, setConfirmResetId] = useState(null);
+  const menuRef = useRef(null);
+
+  // Inline editor state
+  const [editingSkillId, setEditingSkillId] = useState(null);
+  const [activeSkillFile, setActiveSkillFile] = useState('SKILL.md');
+  const [skillConfigs, setSkillConfigs] = useState(() => normalizeSkillConfig((() => { try { return JSON.parse(localStorage.getItem('ai_skill_prompts') || '{}'); } catch { return {}; } })()).normalized);
+  const [savedSkills, setSavedSkills] = useState(false);
+  const [skillValidationMsg, setSkillValidationMsg] = useState('');
+  const [importError, setImportError] = useState('');
+  const fileInputRef = useRef(null);
+  const [showAddFile, setShowAddFile] = useState(false);
+  const [newFileName, setNewFileName] = useState('');
+  const [newFileLocation, setNewFileLocation] = useState('references');
+  const [addFileError, setAddFileError] = useState('');
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpenId(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const refreshSkills = () => setSkills(getSkillList());
+
+  const handleToggleDisable = (skillId) => {
+    let disabledSkills = [];
+    try { disabledSkills = JSON.parse(localStorage.getItem('skill_disabled') || '[]'); } catch {}
+    if (disabledSkills.includes(skillId)) {
+      disabledSkills = disabledSkills.filter(id => id !== skillId);
+    } else {
+      disabledSkills.push(skillId);
+    }
+    localStorage.setItem('skill_disabled', JSON.stringify(disabledSkills));
+    refreshSkills();
+    setMenuOpenId(null);
+  };
+
+  const handleResetDefault = (skillId) => {
+    let customPrompts = {};
+    try { customPrompts = JSON.parse(localStorage.getItem('ai_skill_prompts') || '{}'); } catch {}
+    delete customPrompts[skillId];
+    localStorage.setItem('ai_skill_prompts', JSON.stringify(customPrompts));
+    refreshSkills();
+    setConfirmResetId(null);
+    setMenuOpenId(null);
+  };
+
+  const handleExportSingle = (skill) => {
+    downloadJson(`skill-${skill.id}.json`, exportSkillJson([skill]));
+    setMenuOpenId(null);
+  };
+
+  const handleExportAll = () => {
+    downloadJson('skills-all.json', exportSkillJson(skills));
+  };
+
+  const filteredSkills = filter === 'all' ? skills
+    : filter === 'builtin' ? skills.filter(s => !s.isCustomized)
+    : skills.filter(s => s.isCustomized);
+
+  const builtinCount = skills.filter(s => !s.isCustomized).length;
+  const customCount = skills.filter(s => s.isCustomized).length;
+
+  const tabStyle = (active) => ({
+    padding: '6px 14px', borderRadius: 16, border: `1px solid ${active ? C.accent : C.border}`,
+    background: active ? C.accentLight : C.white, color: active ? C.accent : C.muted,
+    cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+  });
+
+  const cardStyle = (isDisabled) => ({
+    background: C.white, border: `1px solid ${C.border}`, borderRadius: 12,
+    padding: 20, display: 'flex', flexDirection: 'column', gap: 10,
+    opacity: isDisabled ? 0.55 : 1, transition: 'box-shadow 0.15s, opacity 0.15s',
+    position: 'relative',
+  });
+
+  const tagStyle = (bg, color) => ({
+    display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 10,
+    fontSize: 11, fontWeight: 600, background: bg, color,
+  });
+
+  return (
+    <div>
+      {/* Confirm Reset Dialog */}
+      {confirmResetId && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setConfirmResetId(null)}>
+          <div style={{ background: C.white, borderRadius: 12, padding: 24, maxWidth: 380, width: '90%', boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: C.ink, marginBottom: 8 }}>恢复默认 Prompt</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.6 }}>将丢失自定义 Prompt，是否继续？</div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setConfirmResetId(null)}
+                style={{ padding: '7px 16px', border: `1px solid ${C.border}`, borderRadius: 6, background: 'none', cursor: 'pointer', fontSize: 13, color: C.ink }}>
+                取消
+              </button>
+              <button onClick={() => handleResetDefault(confirmResetId)}
+                style={{ padding: '7px 16px', border: 'none', borderRadius: 6, background: C.danger, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                确认恢复
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+        {/* Title + Export All */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <h2 style={{ fontWeight: 700, fontSize: 22, color: C.ink, margin: 0 }}>Skill 管理</h2>
+            <p style={{ fontSize: 13, color: C.muted, margin: '4px 0 0' }}>管理所有 AI Skill 的配置、启用状态和 Prompt 模板。</p>
+            {importError && <div style={{ fontSize: 12, color: C.danger, marginTop: 6 }}>{importError}</div>}
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <input type="file" ref={fileInputRef} accept=".json" style={{ display: 'none' }} onChange={e => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = ev => {
+                try {
+                  const data = JSON.parse(ev.target.result);
+                  if (!data.skills || !Array.isArray(data.skills)) throw new Error('无效的 Skill 文件格式');
+                  let saved = {}; try { saved = JSON.parse(localStorage.getItem('ai_skill_prompts') || '{}'); } catch {}
+                  data.skills.forEach(s => {
+                    if (!s.id || !s.files || !s.files['SKILL.md']) throw new Error(`Skill ${s.id || '?'} 缺少必要字段`);
+                    saved[s.id] = { files: s.files };
+                  });
+                  localStorage.setItem('ai_skill_prompts', JSON.stringify(saved));
+                  refreshSkills();
+                  setImportError('');
+                } catch (err) {
+                  setImportError(`导入失败：${err.message}`);
+                }
+                e.target.value = '';
+              };
+              reader.readAsText(file);
+            }} />
+            <button onClick={() => { setImportError(''); fileInputRef.current?.click(); }}
+              style={{ padding: '8px 16px', border: `1px solid ${C.border}`, borderRadius: 6, background: C.white, color: C.ink, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+              导入
+            </button>
+            <button onClick={handleExportAll}
+              style={{ padding: '8px 16px', border: `1px solid ${C.border}`, borderRadius: 6, background: C.white, color: C.ink, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+              导出全部
+            </button>
+          </div>
+        </div>
+
+        {editingSkillId ? (() => {
+          const editMeta = AI_SKILLS[editingSkillId];
+          const editFiles = skillConfigs[editingSkillId]?.files || buildDefaultSkillFiles(editingSkillId);
+          const editFileContent = editFiles[activeSkillFile] ?? '';
+          const handleSaveSkillInline = () => {
+            const inspected = normalizeSkillConfig(skillConfigs);
+            if (inspected.invalidPaths.length > 0) { setSkillValidationMsg(`非法路径：${inspected.invalidPaths.join('；')}`); return; }
+            const saved = { ...(() => { try { return JSON.parse(localStorage.getItem('ai_skill_prompts') || '{}'); } catch { return {}; } })(), ...inspected.normalized };
+            localStorage.setItem('ai_skill_prompts', JSON.stringify(saved));
+            setSkillConfigs(inspected.normalized);
+            setSkillValidationMsg(inspected.correctedPaths.length > 0 ? `已自动纠正路径：${inspected.correctedPaths.join('；')}` : '');
+            setSavedSkills(true); setTimeout(() => setSavedSkills(false), 2000);
+            refreshSkills();
+          };
+          return (
+            <div>
+              <style>{`.file-tree-item:hover .file-delete-btn{opacity:1!important;}`}</style>
+              {/* Editor Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                <button onClick={() => { setEditingSkillId(null); refreshSkills(); }}
+                  style={{ padding: '5px 12px', border: `1px solid ${C.border}`, borderRadius: 6, background: C.white, cursor: 'pointer', fontSize: 12, color: C.ink }}>
+                  ← 返回列表
+                </button>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: C.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+                  {editMeta?.icon}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 16, color: C.ink }}>{editMeta?.name}</div>
+                  <div style={{ fontSize: 12, color: C.muted }}>{editMeta?.desc}</div>
+                </div>
+              </div>
+
+              {/* Editor Body: File Tree + Editor */}
+              <div style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
+                {/* Left: File Tree */}
+                <div style={{ width: 220, flexShrink: 0, background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12 }}>
+                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 8, fontWeight: 700 }}>文件结构</div>
+                  <button onClick={() => setActiveSkillFile('SKILL.md')}
+                    style={{ width: '100%', border: 'none', borderRadius: 6, textAlign: 'left', cursor: 'pointer', padding: '7px 9px', fontSize: 12, fontFamily: 'inherit',
+                      background: activeSkillFile === 'SKILL.md' ? C.accentLight : 'transparent',
+                      color: activeSkillFile === 'SKILL.md' ? C.accent : C.ink,
+                      fontWeight: activeSkillFile === 'SKILL.md' ? 600 : 400,
+                      boxShadow: activeSkillFile === 'SKILL.md' ? `inset 2px 0 0 ${C.accent}` : 'none' }}>
+                    SKILL.md
+                  </button>
+
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 10, marginBottom: 4 }}>references/</div>
+                  {Object.keys(editFiles).filter(p => p.startsWith('references/')).map(path => (
+                    <div key={path} style={{ position: 'relative', display: 'flex', alignItems: 'center' }} className="file-tree-item">
+                      <button onClick={() => setActiveSkillFile(path)}
+                        style={{ flex: 1, border: 'none', borderRadius: 6, textAlign: 'left', cursor: 'pointer', padding: '6px 9px', fontSize: 12, paddingLeft: 20, fontFamily: 'inherit',
+                          background: activeSkillFile === path ? C.accentLight : 'transparent',
+                          color: activeSkillFile === path ? C.accent : C.ink,
+                          fontWeight: activeSkillFile === path ? 600 : 400,
+                          boxShadow: activeSkillFile === path ? `inset 2px 0 0 ${C.accent}` : 'none' }}>
+                        {path.replace('references/', '')}
+                      </button>
+                      <button onClick={() => {
+                        setSkillConfigs(prev => {
+                          const files = { ...(prev[editingSkillId]?.files || editFiles) };
+                          delete files[path];
+                          return { ...prev, [editingSkillId]: { files } };
+                        });
+                        if (activeSkillFile === path) setActiveSkillFile('SKILL.md');
+                      }} className="file-delete-btn"
+                        style={{ position: 'absolute', right: 4, padding: '2px 6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: C.danger, opacity: 0, transition: 'opacity 0.15s' }}>
+                        ×
+                      </button>
+                    </div>
+                  ))}
+
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 10, marginBottom: 4 }}>scripts/</div>
+                  {Object.keys(editFiles).filter(p => p.startsWith('scripts/')).map(path => (
+                    <div key={path} style={{ position: 'relative', display: 'flex', alignItems: 'center' }} className="file-tree-item">
+                      <button onClick={() => setActiveSkillFile(path)}
+                        style={{ flex: 1, border: 'none', borderRadius: 6, textAlign: 'left', cursor: 'pointer', padding: '6px 9px', fontSize: 12, paddingLeft: 20, fontFamily: 'inherit',
+                          background: activeSkillFile === path ? C.accentLight : 'transparent',
+                          color: activeSkillFile === path ? C.accent : C.ink,
+                          fontWeight: activeSkillFile === path ? 600 : 400,
+                          boxShadow: activeSkillFile === path ? `inset 2px 0 0 ${C.accent}` : 'none' }}>
+                        {path.replace('scripts/', '')}
+                      </button>
+                      <button onClick={() => {
+                        setSkillConfigs(prev => {
+                          const files = { ...(prev[editingSkillId]?.files || editFiles) };
+                          delete files[path];
+                          return { ...prev, [editingSkillId]: { files } };
+                        });
+                        if (activeSkillFile === path) setActiveSkillFile('SKILL.md');
+                      }} className="file-delete-btn"
+                        style={{ position: 'absolute', right: 4, padding: '2px 6px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: C.danger, opacity: 0, transition: 'opacity 0.15s' }}>
+                        ×
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Add File */}
+                  {!showAddFile ? (
+                    <button onClick={() => { setShowAddFile(true); setAddFileError(''); }}
+                      style={{ width: '100%', marginTop: 12, padding: '6px 9px', border: `1px dashed ${C.border}`, borderRadius: 6, background: 'none', cursor: 'pointer', fontSize: 12, color: C.muted, textAlign: 'left' }}>
+                      + 添加文件
+                    </button>
+                  ) : (
+                    <div style={{ marginTop: 12, padding: 8, border: `1px solid ${C.border}`, borderRadius: 6, background: C.cream }}>
+                      <input value={newFileName} onChange={e => setNewFileName(e.target.value)} placeholder="文件名"
+                        style={{ width: '100%', padding: '4px 8px', marginBottom: 6, fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 4, fontFamily: 'inherit' }} />
+                      <select value={newFileLocation} onChange={e => setNewFileLocation(e.target.value)}
+                        style={{ width: '100%', padding: '4px 8px', marginBottom: 6, fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 4, fontFamily: 'inherit' }}>
+                        <option value="references">references/</option>
+                        <option value="scripts">scripts/</option>
+                      </select>
+                      {addFileError && <div style={{ fontSize: 11, color: C.danger, marginBottom: 6 }}>{addFileError}</div>}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => {
+                          const name = newFileName.trim();
+                          if (!name) { setAddFileError('请输入文件名'); return; }
+                          if (!/^[a-zA-Z0-9._-]+$/.test(name)) { setAddFileError('文件名只能包含字母、数字、点、中划线'); return; }
+                          const fullPath = `${newFileLocation}/${name}`;
+                          const currentFiles = skillConfigs[editingSkillId]?.files || editFiles;
+                          if (currentFiles[fullPath]) { setAddFileError('文件已存在'); return; }
+                          setSkillConfigs(prev => ({ ...prev, [editingSkillId]: { files: { ...currentFiles, [fullPath]: '' } } }));
+                          setNewFileName(''); setShowAddFile(false); setAddFileError(''); setActiveSkillFile(fullPath);
+                        }} style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: 'none', borderRadius: 4, background: C.accent, color: '#fff', cursor: 'pointer' }}>添加</button>
+                        <button onClick={() => { setShowAddFile(false); setNewFileName(''); setAddFileError(''); }} style={{ flex: 1, padding: '4px 8px', fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 4, background: C.white, cursor: 'pointer' }}>取消</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Editor */}
+                <div style={{ flex: 1, background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16 }}>
+                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>当前文件：<span style={{ color: C.ink, fontFamily: "'DM Mono',monospace" }}>{activeSkillFile}</span></div>
+
+                  {/* Placeholder Tags */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 500 }}>可用占位符（点击复制）</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {(editMeta?.vars || []).map(v => (
+                        <button key={v} onClick={() => navigator.clipboard.writeText(v)}
+                          style={{ padding: '3px 8px', borderRadius: 4, border: `1px solid ${C.accent}44`, background: C.accentLight,
+                            color: C.accent, fontSize: 11, cursor: 'pointer', fontFamily: "'DM Mono', monospace" }}>
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <textarea
+                    value={editFileContent}
+                    onChange={e => setSkillConfigs(prev => ({
+                      ...prev,
+                      [editingSkillId]: {
+                        files: {
+                          ...(prev[editingSkillId]?.files || buildDefaultSkillFiles(editingSkillId)),
+                          [activeSkillFile]: e.target.value,
+                        },
+                      },
+                    }))}
+                    style={{ width: '100%', boxSizing: 'border-box', height: 380, resize: 'vertical', lineHeight: 1.6, padding: '10px 12px', marginBottom: 12,
+                      fontFamily: "'DM Mono', monospace", fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 6, background: C.cream, color: C.ink, outline: 'none' }}
+                  />
+
+                  {skillValidationMsg && <div style={{ fontSize: 11, color: C.warn, marginBottom: 10 }}>{skillValidationMsg}</div>}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <button onClick={handleSaveSkillInline}
+                      style={{ padding: '8px 20px', background: C.accent, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                      保存
+                    </button>
+                    <button onClick={() => {
+                      setSkillConfigs(prev => ({ ...prev, [editingSkillId]: { files: buildDefaultSkillFiles(editingSkillId) } }));
+                      setActiveSkillFile('SKILL.md');
+                      setSkillValidationMsg('已恢复默认结构，点击保存后生效');
+                    }}
+                      style={{ padding: '8px 14px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, cursor: 'pointer', fontSize: 13, color: C.ink }}>
+                      恢复默认
+                    </button>
+                    {savedSkills && <span style={{ fontSize: 12, color: C.success }}>✓ 已保存</span>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })() : (
+          <>
+            {/* Filter Tabs */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+              <button onClick={() => setFilter('all')} style={tabStyle(filter === 'all')}>全部 ({skills.length})</button>
+              <button onClick={() => setFilter('builtin')} style={tabStyle(filter === 'builtin')}>内置 ({builtinCount})</button>
+              <button onClick={() => setFilter('custom')} style={tabStyle(filter === 'custom')}>已自定义 ({customCount})</button>
+            </div>
+
+            {/* Card Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+              {filteredSkills.map(skill => (
+                <div key={skill.id} style={cardStyle(skill.isDisabled)}
+                  onMouseEnter={e => { if (!skill.isDisabled) e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 8, background: C.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+                      {skill.icon}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: C.ink }}>{skill.name}</div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, minHeight: 36 }}>
+                    {skill.desc.length > 60 ? skill.desc.slice(0, 60) + '...' : skill.desc}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {skill.isDisabled
+                      ? <span style={tagStyle(C.dangerLight, C.danger)}>已禁用</span>
+                      : <span style={tagStyle(C.successLight, C.success)}>已启用</span>
+                    }
+                    {skill.isCustomized && <span style={tagStyle(C.purpleLight, C.purple)}>已自定义</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+                    <button onClick={() => { setEditingSkillId(skill.id); setActiveSkillFile('SKILL.md'); setSkillValidationMsg(''); }}
+                      style={{ padding: '5px 12px', border: `1px solid ${C.border}`, borderRadius: 6, background: 'none', cursor: 'pointer', fontSize: 12, color: C.accent, fontWeight: 600 }}>
+                      编辑
+                    </button>
+                    <div style={{ position: 'relative' }}>
+                      <button onClick={() => setMenuOpenId(menuOpenId === skill.id ? null : skill.id)}
+                        style={{ padding: '5px 10px', border: `1px solid ${C.border}`, borderRadius: 6, background: 'none', cursor: 'pointer', fontSize: 14, color: C.muted, lineHeight: 1 }}>
+                        ⋯
+                      </button>
+                      {menuOpenId === skill.id && (
+                        <div ref={menuRef} style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: C.white, border: `1px solid ${C.border}`, borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 100, minWidth: 160, overflow: 'hidden' }}>
+                          <button onClick={() => handleToggleDisable(skill.id)}
+                            style={{ width: '100%', padding: '9px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.ink, textAlign: 'left' }}
+                            onMouseEnter={e => e.currentTarget.style.background = C.cream}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                            {skill.isDisabled ? '启用' : '禁用'}
+                          </button>
+                          {skill.isCustomized && (
+                            <button onClick={() => { setConfirmResetId(skill.id); setMenuOpenId(null); }}
+                              style={{ width: '100%', padding: '9px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.warn, textAlign: 'left' }}
+                              onMouseEnter={e => e.currentTarget.style.background = C.cream}
+                              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                              恢复默认
+                            </button>
+                          )}
+                          <button onClick={() => handleExportSingle(skill)}
+                            style={{ width: '100%', padding: '9px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.ink, textAlign: 'left' }}
+                            onMouseEnter={e => e.currentTarget.style.background = C.cream}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                            导出 JSON
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
     </div>
   );
 }
@@ -8753,7 +9680,7 @@ export default function PMPlatform() {
   const [activeTab,setActiveTab]    = useState("kanban");
   const [toast,setToast]            = useState(null);
   const [projectConfig, setProjectConfig] = useState(() => loadProjectConfig());
-  const [currentView, setCurrentView]     = useState(null); // null | 'settings'
+  const [currentView, setCurrentView]     = useState(null); // null | 'settings' | 'skills'
   const [selectedSpaces, setSelectedSpaces]               = useState([]);
   const [selectedIterations, setSelectedIterations]       = useState([]);
   const [selectedSubsystems, setSelectedSubsystems]       = useState([]);
@@ -8771,6 +9698,8 @@ export default function PMPlatform() {
   const [showNewDropdown, setShowNewDropdown]             = useState(false);
   const [showImportDrawer, setShowImportDrawer]           = useState(false);
   const [themeMode, setThemeMode]                         = useState(() => readThemeMode());
+  const [columnSortConfig, setColumnSortConfig]           = useState(() => loadColumnSortConfig());
+  const [sortMenuCol, setSortMenuCol]                     = useState(null);
 
   applyThemeModeTokens(themeMode);
 
@@ -9325,6 +10254,7 @@ export default function PMPlatform() {
         projectConfig={projectConfig}
         onSave={(cfg) => setProjectConfig(cfg)}
         onBack={() => setCurrentView(null)}
+        onNavigateToSkills={() => { setCurrentView(null); setActiveTab('skills'); }}
         themeMode={themeMode}
         onToggleThemeMode={() => setThemeMode(themeMode === "dark" ? "light" : "dark")}
       />
@@ -9390,7 +10320,7 @@ export default function PMPlatform() {
           <span style={{color:"#fff",fontWeight:700,fontSize:14}}>PM·AI</span>
           <span style={{color:"#444",fontSize:11,fontFamily:"'DM Mono',monospace"}}>产品智能工作台</span>
         </div>
-        {[{id:"kanban",label:"需求评审看板"},{id:"stats",label:"数据概览"}].map(t=>(
+        {[{id:"kanban",label:"需求评审看板"},{id:"stats",label:"数据概览"},{id:"skills",label:"Skill 管理"}].map(t=>(
           <button key={t.id} onClick={()=>setActiveTab(t.id)}
             style={{padding:"14px 18px",background:"none",border:"none",color:activeTab===t.id?"#fff":"#555",fontSize:13,cursor:"pointer",borderBottom:`2px solid ${activeTab===t.id?C.accent:"transparent"}`,fontWeight:activeTab===t.id?600:400}}>
             {t.label}
@@ -9611,6 +10541,13 @@ export default function PMPlatform() {
         </div>
       )}
 
+      {/* Skills */}
+      {activeTab==="skills"&&(
+        <div style={{flex:1,overflowY:"auto",padding:24,maxWidth:1100,margin:"0 auto",width:"100%",boxSizing:"border-box"}}>
+          <SkillManagementPage themeMode={themeMode}/>
+        </div>
+      )}
+
       {/* Kanban */}
       {activeTab==="kanban"&&(
         <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}} onClick={()=>{setSpaceDropdownOpen(false);setIterationDropdownOpen(false);setSubsystemDropdownOpen(false);setAppDropdownOpen(false);setAssigneeDropdownOpen(false);}}>
@@ -9674,7 +10611,8 @@ export default function PMPlatform() {
               </div>
             )}
           />
-          <div style={{flex:1,display:"flex",gap:0,overflowX:"auto",padding:"20px 16px",overflowY:"hidden"}} onClick={e=>e.stopPropagation()}>
+          <style>{`.kanban-col-header:hover .kanban-sort-btn{opacity:1!important;}`}</style>
+          <div style={{flex:1,display:"flex",gap:0,overflowX:"auto",padding:"20px 16px",overflowY:"hidden"}} onClick={e=>{e.stopPropagation();setSortMenuCol(null);}}>
             {filteredCards.length === 0 && (selectedSpaces.length > 0 || selectedIterations.length > 0 || selectedSubsystems.length > 0 || selectedApps.length > 0 || selectedAssignees.length > 0) ? (
               <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:C.muted,gap:12}}>
                 <div style={{fontSize:36}}>🔍</div>
@@ -9684,14 +10622,54 @@ export default function PMPlatform() {
               </div>
             ) : (
               COLUMNS.map(col=>{
-                const colCards=filteredCards.filter(c=>c.col===col.id);
+                const colCards=sortCardsInColumn(filteredCards.filter(c=>c.col===col.id), columnSortConfig[col.id]);
+                const colSort = columnSortConfig[col.id];
+                const sortActive = !!colSort;
                 return (
                   <div key={col.id} onDragOver={e=>e.preventDefault()} onDrop={e=>handleDrop(e,col.id)}
                     style={{flex:"0 0 252px",marginRight:12,display:"flex",flexDirection:"column"}}>
-                    <div style={{padding:"10px 14px",background:col.bg,borderRadius:"8px 8px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{padding:"10px 14px",background:col.bg,borderRadius:"8px 8px 0 0",border:`1px solid ${C.border}`,borderBottom:"none",display:"flex",alignItems:"center",gap:8,position:"relative"}}
+                      className="kanban-col-header">
                       <div style={{width:8,height:8,borderRadius:"50%",background:col.color}}/>
                       <span style={{fontWeight:700,fontSize:13,color:col.color}}>{col.label}</span>
                       <span style={{marginLeft:"auto",fontSize:12,fontWeight:700,color:col.color,fontFamily:"'DM Mono',monospace",background:C.white,padding:"1px 7px",borderRadius:8}}>{colCards.length}</span>
+                      <button onClick={e=>{e.stopPropagation();setSortMenuCol(sortMenuCol===col.id?null:col.id);}}
+                        className="kanban-sort-btn"
+                        style={{padding:"2px 4px",background:"none",border:"none",cursor:"pointer",fontSize:13,color:sortActive?col.color:C.muted,opacity:sortActive?1:0,transition:"opacity 0.15s",lineHeight:1}}>
+                        {sortActive ? (colSort.asc ? '↑' : '↓') : '⇅'}
+                      </button>
+                      {sortMenuCol===col.id && (
+                        <div style={{position:"absolute",top:"100%",right:0,zIndex:50,background:C.white,border:`1px solid ${C.border}`,borderRadius:8,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",padding:"6px 0",minWidth:140,marginTop:4}}
+                          onClick={e=>e.stopPropagation()}>
+                          {SORT_OPTIONS.map(opt=>{
+                            const isActive = colSort?.key === opt.key;
+                            return (
+                              <div key={opt.key} onClick={()=>{
+                                const next = {...columnSortConfig};
+                                if (isActive) { next[col.id] = {key:opt.key, asc:!colSort.asc}; }
+                                else { next[col.id] = {key:opt.key, asc:true}; }
+                                setColumnSortConfig(next); saveColumnSortConfig(next); setSortMenuCol(null);
+                              }}
+                                style={{padding:"6px 14px",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:6,background:isActive?C.accentLight:"transparent",color:isActive?C.accent:C.ink,fontWeight:isActive?600:400}}
+                                onMouseEnter={e=>{if(!isActive)e.currentTarget.style.background=C.cream;}}
+                                onMouseLeave={e=>{if(!isActive)e.currentTarget.style.background="transparent";}}>
+                                <span style={{width:14,textAlign:"center"}}>{isActive?(colSort.asc?'↑':'↓'):'○'}</span>
+                                {opt.label}
+                              </div>
+                            );
+                          })}
+                          <div style={{height:1,background:C.border,margin:"4px 0"}}/>
+                          <div onClick={()=>{
+                            const next = {...columnSortConfig}; delete next[col.id];
+                            setColumnSortConfig(next); saveColumnSortConfig(next); setSortMenuCol(null);
+                          }}
+                            style={{padding:"6px 14px",fontSize:12,cursor:"pointer",color:C.muted}}
+                            onMouseEnter={e=>{e.currentTarget.style.background=C.cream;}}
+                            onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
+                            清除排序
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div style={{flex:1,background:col.bg+"88",border:`1px solid ${C.border}`,borderRadius:"0 0 8px 8px",padding:10,minHeight:100}}>
                       {colCards.map(card=>(
