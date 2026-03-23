@@ -1,0 +1,9 @@
+claude code version
+
+---
+
+什么版本才支持remote-control
+
+---
+
+我/后没有 rc 命令
