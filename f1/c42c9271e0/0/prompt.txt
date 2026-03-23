@@ -1,0 +1,134 @@
+AI 设计页面,批量提交github时报错,PMPlatform.jsx:7326  PATCH https://api.github.com/repos/Divem/ai-devops/git/refs/heads/main 422 (Unprocessable Content)
+api @ PMPlatform.jsx:7326
+batchCommitToGitHub @ PMPlatform.jsx:7362
+await in batchCommitToGitHub
+batchCommitProposalToProfile @ PMPlatform.jsx:7427
+handleBatchCommit @ PMPlatform.jsx:4956
+executeDispatch @ react-dom_client.js?v=062db089:13620
+runWithFiberInDEV @ react-dom_client.js?v=062db089:995
+processDispatchQueue @ react-dom_client.js?v=062db089:13656
+(anonymous) @ react-dom_client.js?v=062db089:14069
+batchedUpdates$1 @ react-dom_client.js?v=062db089:2624
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=062db089:13761
+dispatchEvent @ react-dom_client.js?v=062db089:16782
+dispatchDiscreteEvent @ react-dom_client.js?v=062db089:16763
+
+---
+
+PMPlatform.jsx:7326  PATCH https://api.github.com/repos/Divem/ai-devops/git/refs/heads/main 422 (Unprocessable Content)
+api @ PMPlatform.jsx:7326
+batchCommitToGitHub @ PMPlatform.jsx:7362
+await in batchCommitToGitHub
+batchCommitProposalToProfile @ PMPlatform.jsx:7427
+handleBatchCommit @ PMPlatform.jsx:4956
+executeDispatch @ react-dom_client.js?v=062db089:13620
+runWithFiberInDEV @ react-dom_client.js?v=062db089:995
+processDispatchQueue @ react-dom_client.js?v=062db089:13656
+(anonymous) @ react-dom_client.js?v=062db089:14069
+batchedUpdates$1 @ react-dom_client.js?v=062db089:2624
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=062db089:13761
+dispatchEvent @ react-dom_client.js?v=062db089:16782
+dispatchDiscreteEvent @ react-dom_client.js?v=062db089:16763
+<button>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=062db089:245
+BatchCommitDialog @ PMPlatform.jsx:5055
+react_stack_bottom_frame @ react-dom_client.js?v=062db089:18507
+renderWithHooksAgain @ react-dom_client.js?v=062db089:5727
+renderWithHooks @ react-dom_client.js?v=062db089:5663
+updateFunctionComponent @ react-dom_client.js?v=062db089:7473
+beginWork @ react-dom_client.js?v=062db089:8523
+runWithFiberInDEV @ react-dom_client.js?v=062db089:995
+performUnitOfWork @ react-dom_client.js?v=062db089:12559
+workLoopSync @ react-dom_client.js?v=062db089:12422
+renderRootSync @ react-dom_client.js?v=062db089:12406
+performWorkOnRoot @ react-dom_client.js?v=062db089:11764
+performSyncWorkOnRoot @ react-dom_client.js?v=062db089:13515
+flushSyncWorkAcrossRoots_impl @ react-dom_client.js?v=062db089:13412
+processRootScheduleInMicrotask @ react-dom_client.js?v=062db089:13435
+(anonymous) @ react-dom_client.js?v=062db089:13529
+<BatchCommitDialog>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=062db089:245
+DetailPage @ PMPlatform.jsx:7212
+react_stack_bottom_frame @ react-dom_client.js?v=062db089:18507
+renderWithHooksAgain @ react-dom_client.js?v=062db089:5727
+renderWithHooks @ react-dom_client.js?v=062db089:5663
+updateFunctionComponent @ react-dom_client.js?v=062db089:7473
+beginWork @ react-dom_client.js?v=062db089:8523
+runWithFiberInDEV @ react-dom_client.js?v=062db089:995
+performUnitOfWork @ react-dom_client.js?v=062db089:12559
+workLoopSync @ react-dom_client.js?v=062db089:12422
+renderRootSync @ react-dom_client.js?v=062db089:12406
+performWorkOnRoot @ react-dom_client.js?v=062db089:11764
+performSyncWorkOnRoot @ react-dom_client.js?v=062db089:13515
+flushSyncWorkAcrossRoots_impl @ react-dom_client.js?v=062db089:13412
+processRootScheduleInMicrotask @ react-dom_client.js?v=062db089:13435
+(anonymous) @ react-dom_client.js?v=062db089:13529
+  AI 设计页面,批量提交 git时报错,帮我分析一下是什么问题
+
+---
+
+AI 设计页面,批量提交github时报错,PMPlatform.jsx:7326  PATCH https://api.github.com/repos/Divem/ai-devops/git/refs/heads/main 422 (Unprocessable Content)                            
+api @ PMPlatform.jsx:7326                                                                                                                                                              
+batchCommitToGitHub @ PMPlatform.jsx:7362                                                                                                                                              
+await in batchCommitToGitHub                                                                                                                                                           
+batchCommitProposalToProfile @ PMPlatform.jsx:7427                                                                                                                                     
+handleBatchCommit @ PMPlatform.jsx:4956                                                                                                                                                
+executeDispatch @ react-dom_client.js?v=062db089:13620                                                                                                                                 
+runWithFiberInDEV @ react-dom_client.js?v=062db089:995                                                                                                                                 
+processDispatchQueue @ react-dom_client.js?v=062db089:13656                                                                                                                            
+(anonymous) @ react-dom_client.js?v=062db089:14069                                                                                                                                     
+batchedUpdates$1 @ react-dom_client.js?v=062db089:2624                                                                                                                                 
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=062db089:13761                                                                                                               
+dispatchEvent @ react-dom_client.js?v=062db089:16782                                                                                                                                   
+dispatchDiscreteEvent @ react-dom_client.js?v=062db089:16763
+
+---
+
+AI 设计页面,批量提交github时报错,PMPlatform.jsx:7326  PATCH https://api.github.com/repos/Divem/ai-devops/git/refs/heads/main 422 (Unprocessable Content)                            
+api @ PMPlatform.jsx:7326                                                                                                                                                              
+batchCommitToGitHub @ PMPlatform.jsx:7362                                                                                                                                              
+await in batchCommitToGitHub                                                                                                                                                           
+batchCommitProposalToProfile @ PMPlatform.jsx:7427                                                                                                                                     
+handleBatchCommit @ PMPlatform.jsx:4956                                                                                                                                                
+executeDispatch @ react-dom_client.js?v=062db089:13620                                                                                                                                 
+runWithFiberInDEV @ react-dom_client.js?v=062db089:995                                                                                                                                 
+processDispatchQueue @ react-dom_client.js?v=062db089:13656                                                                                                                            
+(anonymous) @ react-dom_client.js?v=062db089:14069                                                                                                                                     
+batchedUpdates$1 @ react-dom_client.js?v=062db089:2624                                                                                                                                 
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=062db089:13761                                                                                                               
+dispatchEvent @ react-dom_client.js?v=062db089:16782                                                                                                                                   
+dispatchDiscreteEvent @ react-dom_client.js?v=062db089:16763
+
+---
+
+AI 设计页面,批量提交github时报错,PMPlatform.jsx:7326  PATCH https://api.github.com/repos/Divem/ai-devops/git/refs/heads/main 422 (Unprocessable Content)                            
+                                                                                                                                                                                       
+api @ PMPlatform.jsx:7326                                                                                                                                                              
+                                                                                                                                                                                       
+batchCommitToGitHub @ PMPlatform.jsx:7362                                                                                                                                              
+                                                                                                                                                                                       
+await in batchCommitToGitHub                                                                                                                                                           
+                                                                                                                                                                                       
+batchCommitProposalToProfile @ PMPlatform.jsx:7427                                                                                                                                     
+                                                                                                                                                                                       
+handleBatchCommit @ PMPlatform.jsx:4956                                                                                                                                                
+                                                                                                                                                                                       
+executeDispatch @ react-dom_client.js?v=062db089:13620                                                                                                                                 
+                                                                                                                                                                                       
+runWithFiberInDEV @ react-dom_client.js?v=062db089:995                                                                                                                                 
+                                                                                                                                                                                       
+processDispatchQueue @ react-dom_client.js?v=062db089:13656                                                                                                                            
+                                                                                                                                                                                       
+(anonymous) @ react-dom_client.js?v=062db089:14069                                                                                                                                     
+                                                                                                                                                                                       
+batchedUpdates$1 @ react-dom_client.js?v=062db089:2624                                                                                                                                 
+                                                                                                                                                                                       
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=062db089:13761                                                                                                               
+                                                                                                                                                                                       
+dispatchEvent @ react-dom_client.js?v=062db089:16782                                                                                                                                   
+                                                                                                                                                                                       
+dispatchDiscreteEvent @ react-dom_client.js?v=062db089:16763
+
+---
+
+/opsx:archive git-batch-commit

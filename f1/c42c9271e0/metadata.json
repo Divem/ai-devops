@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "f1c42c9271e0",
+  "strategy": "manual-commit",
+  "branch": "refactor/pruned-version",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "openspec/FEATURES.md",
+    "pm-ai-app/src/PMPlatform.jsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f1/c42c9271e0/0/metadata.json",
+      "transcript": "/f1/c42c9271e0/0/full.jsonl",
+      "content_hash": "/f1/c42c9271e0/0/content_hash.txt",
+      "prompt": "/f1/c42c9271e0/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 22,
+    "cache_creation_tokens": 28815,
+    "cache_read_tokens": 249349,
+    "output_tokens": 3046,
+    "api_call_count": 15
+  }
+}
