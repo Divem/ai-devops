@@ -1,0 +1,9 @@
+/opsx:apply skill-management-page
+
+---
+
+/opsx:apply skill-management-page
+
+---
+
+/opsx:archive skill-management-page
