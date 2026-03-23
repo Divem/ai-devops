@@ -1,0 +1,33 @@
+/opsx:apply kanban-column-sort
+
+---
+
+/openspec-propose skill 管理页面,怎么编辑时跳转到了项目配置页面,需要设计一个单独的 SKILL 编辑功能
+
+---
+
+/opsx:apply skill-editor-page
+
+---
+
+/openspec-propose 在主页上点击 SKILL 管理后,跟点击数据概览一样,顶部导航不要变,目前的交互是变成了新窗口和返回
+
+---
+
+/opsx:apply skill-tab-navigation
+
+---
+
+继续
+
+---
+
+/openspec-propose SKILL 管理中支持上传 SKILL;以及 SKIL 编辑页面支持上传文件和删除已有文件,其中 SKILL.md不支持删除
+
+---
+
+/opsx:apply skill-file-management
+
+---
+
+/opsx:archive skill-file-management
