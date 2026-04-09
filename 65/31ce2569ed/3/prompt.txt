@@ -1,0 +1,93 @@
+使用飞书 CLI,查询好友袁文的 openid
+
+---
+
+切换为 user 身份搜索
+
+---
+
+对方是外部联系人
+
+---
+
+要
+
+---
+
+lark-cli auth login --scope "search:message"
+
+---
+
+是不是有一个deploy-and-send 的 skill,将这个 skill 中的接收人改为袁文的 openid
+
+---
+
+# Deploy and Send
+
+Build project, zip `dist/`, send via Feishu.
+
+## Defaults
+
+Silently use these values — do NOT ask unless the user requests a change:
+
+| Parameter | Default |
+|-----------|---------|
+| `project-dir` | current working directory |
+| `zip-name` | `dist.zip` |
+| `user-id` | `ou_342b526d834b2519ffcb8de48e9addc1` |
+| `build-only` | false (build + send) |
+
+## Workflow
+
+1. Parse user intent for parameter overrides (e.g. "发给我" → use default; "发给张三" → ask for user-id; "只打包" → build-only=true). Use AskUserQuestion only when the user's intent is ambiguous or refers to a different value.
+2. Build and zip:
+   ```bash
+   bash <skill-path>/scripts/build-and-zip.sh <project-dir> <zip-name>
+   ```
+3. If `build-only` is false, send via Feishu:
+   ```bash
+   lark-cli im +messages-send --as bot --user-id <user-id> --file <zip-name>
+   ```
+4. If send fails (size limit or permission), fallback to Drive upload:
+   ```bash
+   lark-cli drive +upload --file <zip-name> --name "<name>-$(date +%Y%m%d-%H%M).zip"
+   ```
+
+## Parameter Override Guide
+
+When the user's request implies a non-default value, ask for the specific info:
+
+- **Different recipient** ("发给张三"): ask for open_id or search via `lark-cli contact +search-user`
+- **Different zip name** ("打包成 demo.zip"): use the specified name
+- **Build only** ("只打包不发" / "只构建"): set build-only=true, skip send
+- **Different project** ("打包 xxx 项目"): use the specified project dir
+
+## Error Handling
+
+- Token expired (`lark-cli auth status`): run `lark-cli auth login`
+- Build fails: report error, do not send
+- Send permission error: suggest checking `im:message:send_as_bot` scope
+
+---
+
+使用这个 skill 构建项目并发送给袁文
+
+---
+
+为什么无法发送给外部联系人
+
+---
+
+是不是拉一个群 bot往群里发送消息就可以
+
+---
+
+将 skill 里的接收人恢复到原来的 openid
+
+---
+
+构建并发送,测试一下效果
+
+---
+
+备份一下这个 skill 到/Users/dawinyuan/Documents/coder/skills_backup中

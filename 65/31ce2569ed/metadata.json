@@ -3,7 +3,7 @@
   "checkpoint_id": "6531ce2569ed",
   "strategy": "manual-commit",
   "branch": "requirement-to-prototype-demo",
-  "checkpoints_count": 15,
+  "checkpoints_count": 28,
   "files_touched": [
     ".github/workflows/deploy.yml",
     "README.md",
@@ -30,13 +30,19 @@
       "transcript": "/65/31ce2569ed/2/full.jsonl",
       "content_hash": "/65/31ce2569ed/2/content_hash.txt",
       "prompt": "/65/31ce2569ed/2/prompt.txt"
+    },
+    {
+      "metadata": "/65/31ce2569ed/3/metadata.json",
+      "transcript": "/65/31ce2569ed/3/full.jsonl",
+      "content_hash": "/65/31ce2569ed/3/content_hash.txt",
+      "prompt": "/65/31ce2569ed/3/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 466424,
+    "input_tokens": 512103,
     "cache_creation_tokens": 147088,
-    "cache_read_tokens": 8251139,
-    "output_tokens": 55175,
-    "api_call_count": 133
+    "cache_read_tokens": 8713219,
+    "output_tokens": 55989,
+    "api_call_count": 145
   }
 }
