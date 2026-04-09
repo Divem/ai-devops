@@ -13,9 +13,10 @@ PM AI Platform 将需求管理从“收集 -> 评审 -> 设计 -> 文档 -> Git 
 
 ## 主要能力
 
-- 需求看板：多阶段流转（含 `已提交（git commit）`）+ 拖拽 + 多维筛选
+- 需求看板：多阶段流转（含 `已提交（git commit）`）+ 拖拽 + 多维筛选 + 列排序（优先级/负责人/日期）
 - 详情抽屉：评审报告 / 原始需求双 Tab，原始需求支持基础信息、Meego 链接、编辑与同步
 - AI 能力：需求评审、文档生成、聊天澄清、失败回退演示
+- AI Skill 管理：结构化 Skill 包编辑（SKILL.md + references + scripts）、内置模板恢复
 - 文档中心：PRD + 多提案（Proposal/Design/Spec/Tasks）树状管理
 - Git 集成：支持多仓库档案、应用-仓库多绑定、默认仓库兜底，并行提交与部分成功展示
 - OpenSpec：propose/apply/archive 全流程变更管理
@@ -48,9 +49,6 @@ npm run dev
 agentic_coding_platform/
 ├── pm-ai-app/                        # 主应用（Vite + React）
 │   └── src/PMPlatform.jsx            # 核心单文件页面逻辑
-├── preview-apps/                     # 设计变体预览
-│   ├── vibe-app/
-│   └── sdd2-app/
 ├── openspec/                         # OpenSpec 规范与变更
 │   ├── specs/                        # 主 specs
 │   └── changes/                      # active + archive changes
@@ -60,21 +58,11 @@ agentic_coding_platform/
 
 ## 开发命令
 
-### 主应用
-
 ```bash
 cd pm-ai-app
 npm run dev
 npm run build
 npm run lint
-```
-
-### 预览应用
-
-```bash
-cd preview-apps/vibe-app   # 或 preview-apps/sdd2-app
-npm install
-npm run dev
 ```
 
 ## AI 模型配置
