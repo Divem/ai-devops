@@ -1,0 +1,63 @@
+hi
+
+---
+
+更新一下 readme
+
+---
+
+我电脑现在开了多少 个 Claude 的进程
+
+---
+
+开了多少个 Claude 窗口
+
+---
+
+这个项目要实现原型生成能力,需要具备哪些条件
+
+---
+
+https://github.com/dingtingli/dtl-skills/tree/main/anthropic-diagram 安装一下这个 skill
+
+---
+
+https://github.com/larksuite/cli  装一下这个 cli 工具
+
+---
+
+接下来我怎么操作配置应用凭证
+
+---
+
+appid:cli_a94e5cf844bddbde;secret:REDACTED
+
+---
+
+<task-notification>
+<task-id>bp4wzcyqh</task-id>
+<tool-use-id>call_d916f6e7a7af4688857062d2</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-dawinyuan-Documents-coder-agentic-coding-platform/1e433d33-3349-4027-9b44-d84ed877a609/tasks/bp4wzcyqh.output</output-file>
+<status>completed</status>
+<summary>Background command "Initialize lark-cli config with app credentials" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-dawinyuan-Documents-coder-agentic-coding-platform/1e433d33-3349-4027-9b44-d84ed877a609/tasks/bp4wzcyqh.output
+
+---
+
+<task-notification>
+<task-id>bex4o5gjn</task-id>
+<tool-use-id>call_41f9906975544c6b834b4511</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-dawinyuan-Documents-coder-agentic-coding-platform/1e433d33-3349-4027-9b44-d84ed877a609/tasks/bex4o5gjn.output</output-file>
+<status>completed</status>
+<summary>Background command "Login with recommended scopes" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-dawinyuan-Documents-coder-agentic-coding-platform/1e433d33-3349-4027-9b44-d84ed877a609/tasks/bex4o5gjn.output
+
+---
+
+作为产研团队负责人总结一下这个产品,写一个面向高管的报告,将报告用 lark-cli写入飞书文档
+
+---
+
+/deploy-and-send

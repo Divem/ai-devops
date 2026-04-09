@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.5.1",
+  "checkpoint_id": "6531ce2569ed",
+  "session_id": "1e433d33-3349-4027-9b44-d84ed877a609",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-09T10:46:03.816718Z",
+  "branch": "requirement-to-prototype-demo",
+  "checkpoints_count": 13,
+  "files_touched": [
+    "README.md",
+    "md/产品-PRD需求文档.md",
+    "md/分析-PRD与实现差异.md",
+    "md/报告-开发过程分析_2026-03-12.md"
+  ],
+  "agent": "Claude Code",
+  "model": "glm-5-turbo",
+  "turn_id": "56f60dffb755",
+  "token_usage": {
+    "input_tokens": 340985,
+    "cache_creation_tokens": 147088,
+    "cache_read_tokens": 3165869,
+    "output_tokens": 23124,
+    "api_call_count": 68
+  },
+  "session_metrics": {
+    "turn_count": 13
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-09T10:46:03.598407Z",
+    "agent_lines": 6,
+    "human_added": 0,
+    "human_modified": 51,
+    "human_removed": 124,
+    "total_committed": 57,
+    "agent_percentage": 10.526315789473683
+  }
+}
