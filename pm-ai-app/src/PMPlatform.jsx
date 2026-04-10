@@ -3573,14 +3573,30 @@ function DetailDrawer({card,onClose,onAIReview,onAIDesign,reviewing,onMoveCard,s
   const [meegoSyncing, setMeegoSyncing] = useState(false);
   const [meegoSyncResult, setMeegoSyncResult] = useState(null);
 
+  const prevAiResultRef = useRef({ id: null, hasResult: false });
+
   useEffect(() => {
-    if (!card) return;
+    if (!card) {
+      prevAiResultRef.current = { id: null, hasResult: false };
+      return;
+    }
     setActiveTab("raw");
     setRawEditMode(false);
     setRawEditText(getDisplayRawRequirement(card).content);
     setMeegoSyncing(false);
     setMeegoSyncResult(null);
-  }, [card]);
+    prevAiResultRef.current = { id: card.id, hasResult: Boolean(card.aiResult) };
+  }, [card?.id]);
+
+  useEffect(() => {
+    if (!card) return;
+    const prev = prevAiResultRef.current;
+    const hasResult = Boolean(card.aiResult);
+    if (prev.id === card.id && !prev.hasResult && hasResult) {
+      setActiveTab("review");
+    }
+    prevAiResultRef.current = { id: card.id, hasResult };
+  }, [card?.id, card?.aiResult]);
 
   if(!card) return null;
   const r=card.aiResult;
