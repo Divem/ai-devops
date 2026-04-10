@@ -1,0 +1,4 @@
+托管到 github pages后,访问后页面白屏,console 报错 (index):8  GET http://dawin-ai.xyz/ai-devops/assets/index-DvjbW-qX.js net::ERR_ABORTED 404 (Not Found)
+(index):9  GET http://dawin-ai.xyz/ai-devops/assets/index-DdrcNR3g.css 404 (Not Found)
+content.js:1 chrome
+content.js:1 IS_SAFARI false
