@@ -1,0 +1,5 @@
+/openspec-propose 需求看板的抽屉中,AI 智能评审结果出来之后,没有自动跳转到评审报告 TAB
+
+---
+
+/openspec-apply-change auto-switch-review-tab
