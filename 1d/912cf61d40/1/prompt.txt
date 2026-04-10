@@ -7,3 +7,7 @@ This site can’t be reached
 (index):8  GET http://dawin-ai.xyz/ai-devops/assets/index-3ek7PsAZ.js net::ERR_ABORTED 404 (Not Found)
 content.js:1 chrome
 content.js:1 IS_SAFARI false  托管到 github pages 后访问报错
+
+---
+
+需要
