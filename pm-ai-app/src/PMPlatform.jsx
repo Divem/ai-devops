@@ -869,14 +869,14 @@ function getDisplayRawRequirement(card) {
     isSample: !hasRealRaw,
   };
 }
-const KANBAN_SPACES = ['马上消费', '中科金得助', '枭龙云国内', '枭龙云国际', '集团'];
+const KANBAN_SPACES = ['抖音', '飞书', '火山引擎', 'TikTok', '集团'];
 
-const KANBAN_SUBSYSTEMS = ['消费金融', '企业服务', '云平台', '集团中台'];
+const KANBAN_SUBSYSTEMS = ['短视频', '协同办公', '云服务', '集团中台'];
 
 const KANBAN_APPS = {
-  '消费金融': ['马上消费App', '白条', '风控平台'],
-  '企业服务': ['金得助', '供应链', '报表中心'],
-  '云平台': ['枭龙云控制台', '枭龙云API', '云监控'],
+  '短视频': ['抖音App', '剪映', '抖音电商'],
+  '协同办公': ['飞书文档', '飞书会议', '飞书审批'],
+  '云服务': ['火山控制台', '火山API', '云监控'],
   '集团中台': ['统一认证', '消息中心', '数据湖'],
 };
 
@@ -1734,9 +1734,9 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     ],
     aiResult: null,
     docs: { prd: null, proposals: [] },
-    space: "马上消费",
-    subsystem: "消费金融",
-    app: "马上消费App",
+    space: "抖音",
+    subsystem: "短视频",
+    app: "抖音App",
     iteration: "迭代-20260301",
   },
   {
@@ -1756,9 +1756,9 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     ],
     aiResult: null,
     docs: { prd: null, proposals: [] },
-    space: "中科金得助",
-    subsystem: "企业服务",
-    app: "金得助",
+    space: "飞书",
+    subsystem: "协同办公",
+    app: "飞书文档",
     iteration: "迭代-20260215",
   },
   {
@@ -1778,9 +1778,9 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     ],
     aiResult: null,
     docs: { prd: null, proposals: [] },
-    space: "枭龙云国内",
-    subsystem: "云平台",
-    app: "枭龙云控制台",
+    space: "火山引擎",
+    subsystem: "云服务",
+    app: "火山控制台",
     iteration: "迭代-20260201",
   },
   {
@@ -1831,9 +1831,9 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     ],
     aiResult: null,
     docs: { prd: null, proposals: [] },
-    space: "马上消费",
-    subsystem: "消费金融",
-    app: "风控平台",
+    space: "抖音",
+    subsystem: "短视频",
+    app: "抖音电商",
     iteration: "迭代-20260101",
   },
   {
@@ -1853,9 +1853,9 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     ],
     aiResult: null,
     docs: { prd: null, proposals: [] },
-    space: "中科金得助",
-    subsystem: "企业服务",
-    app: "供应链",
+    space: "飞书",
+    subsystem: "协同办公",
+    app: "飞书会议",
     iteration: "迭代-20251215",
   },
   {
@@ -1884,9 +1884,9 @@ const PRD_SEEDED_SAMPLE_CARDS = [
       passed: true,
     },
     docs: { prd: null, proposals: [] },
-    space: "枭龙云国际",
-    subsystem: "云平台",
-    app: "枭龙云API",
+    space: "TikTok",
+    subsystem: "云服务",
+    app: "火山API",
     iteration: "迭代-20260301",
   },
   {
@@ -1928,8 +1928,8 @@ const PRD_SEEDED_SAMPLE_CARDS = [
     ],
     aiResult: null,
     docs: { prd: null, proposals: [] },
-    space: "枭龙云国内",
-    subsystem: "云平台",
+    space: "火山引擎",
+    subsystem: "云服务",
     app: "云监控",
     iteration: "迭代-20260201",
   },
