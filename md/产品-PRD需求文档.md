@@ -220,7 +220,7 @@ graph TD
 ## 7. 数据流设计
 
 ```mermaid
-graph TD
+graph LR
     Meego[Meego 业务需求平台] -->|数据同步| A[需求管理平台-看板]
     A -->|触发 AI 辅助分析| B(AI 助手对话界面)
     B -->|多轮对话澄清| C{AI Agent Claude Code}
